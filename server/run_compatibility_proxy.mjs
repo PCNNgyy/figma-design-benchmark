@@ -1,0 +1,207 @@
+import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
+import process from "node:process";
+import path from "node:path";
+import { normalizeLocalAnthropicBody, normalizeTextOnlyAnthropicBody, liftToolResultImages, stripThinkingBlocks, synthesizeAnthropicSse } from "./anthropic_compat.mjs";
+import { fingerprint } from "./benchmark_protocol.mjs";
+import { prepareRunInferenceProfile, annotateRunInferenceProfile, applyRunInferenceProfile } from "./benchmark_inference_profile.mjs";
+import { captureWireRequest } from "./benchmark_wire_capture.mjs";
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : "";
+}
+
+const configPath = argument("--config");
+const statePath = argument("--state");
+if (!configPath || !statePath) {
+  throw new Error("缺少 --config 或 --state");
+}
+
+const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+const runDir = path.dirname(path.resolve(configPath));
+const inferenceProfile = prepareRunInferenceProfile(runDir);
+// 实时思考文件：长思考模型一轮想十几分钟，轨迹要等轮末才落库。
+// 从流式响应里把 thinking_delta 顺手摘出来写到 run 目录，轨迹页 2 秒一刷显示。
+// 每轮（message_start）清空重写；透传本身不受影响。
+const liveThinkingPath = new URL("live-thinking.txt", `file://${configPath.replace(/[^/]*$/, "")}`).pathname;
+let liveCarry = "";
+let liveSize = 0;
+function tapThinking(chunk) {
+  try {
+    const text = liveCarry + chunk.toString("utf8");
+    const lines = text.split("\n");
+    liveCarry = lines.pop() || "";
+    if (liveCarry.length > 65536) liveCarry = "";  // 防超长行把内存拖爆
+    let out = "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      let event;
+      try { event = JSON.parse(line.slice(5)); } catch { continue; }
+      if (event.type === "message_start") {
+        fs.writeFileSync(liveThinkingPath, "");
+        liveSize = 0;
+      } else if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") {
+        out += event.delta.thinking || "";
+      }
+    }
+    if (out) {
+      if (liveSize > 524288) { fs.writeFileSync(liveThinkingPath, ""); liveSize = 0; }
+      fs.appendFileSync(liveThinkingPath, out);
+      liveSize += out.length;
+    }
+  } catch { /* 展示层旁路，出错绝不影响转发 */ }
+}
+const upstream = new URL(config.upstream_base_url);
+const transport = upstream.protocol === "https:" ? https : http;
+
+function writeState(value) {
+  const temporary = `${statePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, statePath);
+}
+
+const server = http.createServer((request, response) => {
+  const chunks = [];
+  request.on("data", (chunk) => chunks.push(chunk));
+  request.on("end", () => {
+    let body = Buffer.concat(chunks);
+    // buffered_stream：Claude Code 永远 stream=true，但 gateway 给 Gemini 做的流式适配会把
+    // tool_use 块丢掉（同一请求非流式能拿到 mcp__figma__whoami，流式只剩文本 + end_turn）。
+    // 开了这个开关就改成非流式打上游，拿到完整 message 后合成 SSE 事件回给 Claude Code。
+    let bufferStream = false;
+    let imageTransport = null;
+    let systemTransport = null;
+    if (body.length && String(request.headers["content-type"] || "").includes("application/json")) {
+      try {
+        const parsed = JSON.parse(body.toString("utf8"));
+        const sourceBody = inferenceProfile ? structuredClone(parsed) : null;
+        const sourceHash = config.lift_tool_result_images || inferenceProfile ? fingerprint(parsed) : null;
+        const imageMoves = [];
+        delete parsed.context_management;
+        if (config.normalize_system_messages) normalizeLocalAnthropicBody(parsed);
+        if (config.normalize_text_blocks) normalizeTextOnlyAnthropicBody(parsed);
+        if (config.strip_thinking) stripThinkingBlocks(parsed);
+        if (config.lift_tool_result_images) liftToolResultImages(parsed, (move) => imageMoves.push(move));
+        if (config.model_override && typeof parsed === "object" && parsed) {
+          parsed.model = config.model_override;
+        }
+        if (config.buffered_stream && parsed && parsed.stream === true) {
+          parsed.stream = false;
+          bufferStream = true;
+        }
+        if (inferenceProfile && Array.isArray(parsed.messages) && new URL(request.url, "http://localhost").pathname.endsWith("/v1/messages")) {
+          applyRunInferenceProfile(parsed, runDir, inferenceProfile);
+          annotateRunInferenceProfile(runDir, inferenceProfile);
+          systemTransport = { kind: inferenceProfile.profile, profile_hash: inferenceProfile.content_hash,
+            at: new Date().toISOString(), path: request.url, source_json_sha256: sourceHash, forwarded_json_sha256: fingerprint(parsed) };
+          systemTransport.wire_request = captureWireRequest(runDir, sourceBody, parsed, request.url, inferenceProfile.content_hash);
+        }
+        body = Buffer.from(JSON.stringify(parsed));
+        if (imageMoves.length) imageTransport = { kind: "tool-images-to-user/v1", at: new Date().toISOString(),
+          path: request.url, model: parsed.model, source_json_sha256: sourceHash,
+          forwarded_json_sha256: fingerprint(parsed), moves: imageMoves };
+      } catch (error) {
+        if (inferenceProfile) {
+          response.writeHead(503, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: { type: "inference_profile_error", message: error.message } }));
+          return;
+        }
+        // 非 JSON 请求体原样转发。
+      }
+    }
+    if (systemTransport) {
+      try { fs.appendFileSync(path.join(runDir, "system-profile-transport.jsonl"), JSON.stringify(systemTransport) + "\n", { mode: 0o600 }); }
+      catch {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: { type: "transport_audit_error", message: "Cannot persist inference profile receipt; request was not forwarded" } }));
+        return;
+      }
+    }
+    if (imageTransport) {
+      try { fs.appendFileSync(new URL("tool-image-transport.jsonl", `file://${configPath.replace(/[^/]*$/, "")}`),
+        JSON.stringify(imageTransport) + "\n", { mode: 0o600 }); }
+      catch {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: { type: "transport_audit_error", message: "Cannot persist the image transport receipt; request was not forwarded" } }));
+        return;
+      }
+    }
+    const headers = { ...request.headers, host: upstream.host, "content-length": body.length };
+    delete headers["anthropic-beta"];
+    const upstreamRequest = transport.request({
+      protocol: upstream.protocol,
+      hostname: upstream.hostname,
+      port: upstream.port || undefined,
+      method: request.method,
+      path: `${upstream.pathname.replace(/\/$/, "")}${request.url}`,
+      headers,
+    }, (upstreamResponse) => {
+      if (!bufferStream) {
+        response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+        if (String(upstreamResponse.headers["content-type"] || "").includes("event-stream")) {
+          upstreamResponse.on("data", tapThinking);
+        }
+        upstreamResponse.pipe(response);
+        return;
+      }
+      const parts = [];
+      upstreamResponse.on("data", (chunk) => parts.push(chunk));
+      upstreamResponse.on("end", () => {
+        const raw = Buffer.concat(parts);
+        let message = null;
+        if ((upstreamResponse.statusCode || 0) === 200) {
+          try { message = JSON.parse(raw.toString("utf8")); } catch { message = null; }
+        }
+        if (!message || message.type !== "message") {
+          // 上游报错或不是 message：原样把状态码和正文交回去，别把错误吞成一条空流
+          const headers = { ...upstreamResponse.headers, "content-length": raw.length };
+          delete headers["transfer-encoding"];
+          response.writeHead(upstreamResponse.statusCode || 502, headers);
+          response.end(raw);
+          return;
+        }
+        const sse = synthesizeAnthropicSse(message);
+        response.writeHead(200, {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+          "x-compat-proxy": "buffered-stream",
+        });
+        response.end(sse);
+      });
+    });
+    upstreamRequest.on("error", (error) => {
+      if (!response.headersSent) response.writeHead(502, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { message: `上游连接失败：${error.message}` } }));
+    });
+    if (body.length) upstreamRequest.write(body);
+    upstreamRequest.end();
+  });
+});
+
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  writeState({ pid: process.pid, status: "stopping", signal, stopped_at: new Date().toISOString() });
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+server.once("error", (error) => {
+  writeState({ pid: process.pid, status: "failed", error: error.message, failed_at: new Date().toISOString() });
+  process.exit(1);
+});
+server.listen(0, "127.0.0.1", () => {
+  const address = server.address();
+  writeState({
+    pid: process.pid,
+    status: "ready",
+    url: `http://127.0.0.1:${address.port}`,
+    started_at: new Date().toISOString(),
+    tool_image_transport: config.lift_tool_result_images ? "tool-images-to-user/v1" : "native",
+  });
+});
