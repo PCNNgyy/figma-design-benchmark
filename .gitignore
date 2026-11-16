@@ -1,0 +1,8 @@
+# Keep credentials and local runtime artifacts out of this repository.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+__pycache__/
+.DS_Store
