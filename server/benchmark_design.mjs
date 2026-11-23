@@ -22,7 +22,7 @@ export function benchmarkDesignTarget(query, baseFigmaUrl = "") {
   return targets[0];
 }
 
-export function benchmarkDesignSystemPrompt(binding, target, { visibleSummary = false, mediaOptional = false } = {}) {
+export function benchmarkDesignSystemPrompt(binding, target, { visibleSummary = false, mediaOptional = false, paperProtocol = false } = {}) {
   const checked = parseTarget(target?.url);
   if (checked.fileKey !== target.fileKey) throw new Error("Figma URL and fileKey disagree");
   return [
@@ -31,7 +31,9 @@ export function benchmarkDesignSystemPrompt(binding, target, { visibleSummary = 
     "Use only this assigned file for the task. The user has provided a dedicated writable benchmark copy.",
     `Call whoami before writing${binding?.identity ? ` and confirm the assigned account is ${binding.identity}` : ""}. Use the configured account and follow the live tool schemas; pass only arguments those schemas accept.`,
     "Read 00 · Start Here for the product, exact screens, states, data, copy and prototype requirements. If an app name in the external query disagrees with this brief, use the product specified in 00 · Start Here.",
-    mediaOptional
+    paperProtocol
+      ? "Read 01 · Foundations for primary colors and typography, 02 · Components for basic interface elements, and 03 · Media for images, logos, illustrations and icons. Preserve all four starter reference pages and their existing nodes. The separate 03 · Workspace page is the delivery location, never the 03 · Media page. Reference layouts are withheld: independently choose layout, hierarchy, composition and visual presentation; do not reconstruct a reference interface."
+      : mediaOptional
       ? "Read 01 · Foundations for the design rules, including the required fonts and colors. Reuse the components in 02 · Components. If 04 · Media is present, read and reuse its assets too. Preserve all reference pages and their existing nodes."
       : "Read 01 · Foundations for the design rules, including the required fonts and colors. Reuse the components in 02 · Components and the assets in 04 · Media. Preserve these reference pages and their existing nodes.",
     `Create the complete design inside ${BENCHMARK_WORKSPACE} in the assigned file. If this page is missing, create it. New frames, reusable components and prototype connections are allowed in this workspace, including when it starts empty.`,

@@ -3,6 +3,7 @@ import http from "node:http";
 import https from "node:https";
 import process from "node:process";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { normalizeLocalAnthropicBody, normalizeTextOnlyAnthropicBody, liftToolResultImages, stripThinkingBlocks, synthesizeAnthropicSse } from "./anthropic_compat.mjs";
 import { fingerprint } from "./benchmark_protocol.mjs";
 import { prepareRunInferenceProfile, annotateRunInferenceProfile, applyRunInferenceProfile } from "./benchmark_inference_profile.mjs";
@@ -20,6 +21,9 @@ if (!configPath || !statePath) {
 }
 
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+if (config.request_seed !== undefined && (!Number.isInteger(config.request_seed) || config.request_seed < 0)) {
+  throw new Error("request_seed must be a nonnegative integer");
+}
 const runDir = path.dirname(path.resolve(configPath));
 const inferenceProfile = prepareRunInferenceProfile(runDir);
 // 实时思考文件：长思考模型一轮想十几分钟，轨迹要等轮末才落库。
@@ -73,9 +77,15 @@ const server = http.createServer((request, response) => {
     let bufferStream = false;
     let imageTransport = null;
     let systemTransport = null;
+    let seedTransport = null;
     if (body.length && String(request.headers["content-type"] || "").includes("application/json")) {
       try {
         const parsed = JSON.parse(body.toString("utf8"));
+        if (config.request_seed !== undefined && new URL(request.url, "http://localhost").pathname.endsWith("/v1/messages")) {
+          if (parsed.seed !== undefined && parsed.seed !== config.request_seed) throw new Error("Conflicting judge request seed");
+          parsed.seed = config.request_seed;
+          seedTransport = { seed_requested: config.request_seed, provider_enforcement: "unverified" };
+        }
         const sourceBody = inferenceProfile ? structuredClone(parsed) : null;
         const sourceHash = config.lift_tool_result_images || inferenceProfile ? fingerprint(parsed) : null;
         const imageMoves = [];
@@ -99,11 +109,12 @@ const server = http.createServer((request, response) => {
           systemTransport.wire_request = captureWireRequest(runDir, sourceBody, parsed, request.url, inferenceProfile.content_hash);
         }
         body = Buffer.from(JSON.stringify(parsed));
+        if (seedTransport) seedTransport.forwarded_body_sha256 = createHash("sha256").update(body).digest("hex");
         if (imageMoves.length) imageTransport = { kind: "tool-images-to-user/v1", at: new Date().toISOString(),
           path: request.url, model: parsed.model, source_json_sha256: sourceHash,
           forwarded_json_sha256: fingerprint(parsed), moves: imageMoves };
       } catch (error) {
-        if (inferenceProfile) {
+        if (inferenceProfile || config.request_seed !== undefined) {
           response.writeHead(503, { "content-type": "application/json" });
           response.end(JSON.stringify({ error: { type: "inference_profile_error", message: error.message } }));
           return;
@@ -138,6 +149,17 @@ const server = http.createServer((request, response) => {
       path: `${upstream.pathname.replace(/\/$/, "")}${request.url}`,
       headers,
     }, (upstreamResponse) => {
+      if (seedTransport) {
+        try {
+          fs.appendFileSync(path.join(runDir, "seed-transport.jsonl"), JSON.stringify({ ...seedTransport,
+            response_status: upstreamResponse.statusCode, at: new Date().toISOString() }) + "\n", { mode: 0o600 });
+        } catch {
+          upstreamResponse.resume();
+          response.writeHead(503, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: { message: "Cannot persist judge seed receipt" } }));
+          return;
+        }
+      }
       if (!bufferStream) {
         response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
         if (String(upstreamResponse.headers["content-type"] || "").includes("event-stream")) {

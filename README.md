@@ -1,23 +1,12 @@
 # Figma Design Benchmark
 
-Code for running editable interface design tasks in Figma, scoring their screenshots with three model judges, and collecting blinded human comparisons in an Arena.
+A portable framework for native Figma design generation, repeated rubric judging, and blinded human comparisons. This version updates the Claude Code harness to the explicit `figmaeval-cvpr2027/v1` protocol and retains a data-free Arena framework.
 
-This release contains a **Claude Code harness** for generation and judging. Claude Code owns the model/tool loop; Python schedules isolated CLI processes, records telemetry and runs deterministic acceptance checks. The optional local proxy only adapts Anthropic-compatible transport and model routing. It does not implement an alternative agent loop.
-
-## Contents
-
-- `scripts/claude_code_harness.py`: inference and independent repeated judging.
-- `server/figma_mcp_stdio_proxy.py`: authenticated, assigned-file-scoped Figma MCP.
-- `server/benchmark_*`: screen inventory, screen count, native capture and blank-screen acceptance.
-- `benchmarks/rubrics/fixed-v4.json` and `server/fixed_scales/fixed_v4.mjs`: 22-item rubric, maximum 53 points.
-- `server/benchmark_arena.mjs` and `arena/`: blinded comparison, per-screen review, task selection, saved progress, incremental ranking and administration.
-- `tests/`: deterministic regression tests and synthetic integration fixtures.
-
-Actual benchmark task files, design outputs, screenshots, trajectories, credentials, scores and human ballots are not included. The offline demo creates synthetic layouts, never benchmark results. No license is granted by this release; licensing is pending. External dependencies retain their respective licenses.
+**No benchmark task files, design outputs, screenshots, trajectories, reviewer identities, ballots, scores, credentials, production account settings or internal server paths are distributed.** Examples and tests use placeholders or synthetic fixtures. Demo PNGs are generated locally when requested; no generated demo assets are committed.
 
 ## Setup
 
-Requires Linux, Node.js 22.16+ and Python 3.11+. The harness was checked against Claude Code **2.1.310**; use a CLI version supporting `--bare`, `--restricted`, `--strict-mcp-config`, `--permission-mode dontAsk`, and streaming JSON output. CLI availability and model availability are separate requirements.
+Requires Linux, Python 3.11+, Node.js 22.16+, and a Claude Code CLI supporting `--bare`, `--restricted`, `--strict-mcp-config`, `--permission-mode dontAsk`, and streaming JSON output. Every invocation records the actual CLI version. A local fixture CLI in the tests is not a live provider test.
 
 ```bash
 npm ci
@@ -25,75 +14,97 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 npm install -g @anthropic-ai/claude-code
-claude --version
 npm test
-python -m unittest discover -s tests -p 'test_*.py'
+npm run test:python
+npm run release:check
 ```
 
-An optional GitHub Actions template is provided in `examples/ci-workflow.example.yml`; it runs offline tests without API keys.
-
-The CLI and Figma MCP are external dependencies. This repository neither bundles Claude Code nor grants access to Figma or commercial model APIs.
+No license is granted by this release; licensing is pending. External dependencies retain their respective licenses. The CLI, Figma MCP, model access, accounts and OAuth credentials are external prerequisites.
 
 ## Inference
 
-Copy `examples/inference.example.json` to `private/inference.json`, put the task query in a private text file, and configure a **dedicated writable Figma copy per task/model**. Paths in configuration are relative to that configuration file. Use a fresh output directory for each invocation.
+Copy `examples/inference.example.json` and its query file into `private/`. All example gateways, accounts and Figma file links are placeholders. Put actual credentials only in environment variables and private OAuth files.
 
 ```bash
-export MODEL_API_KEY='your-local-credential'
 python scripts/claude_code_harness.py inference \
-  --config private/inference.json --output outputs/inference --validate-only
+  --config examples/inference.example.json --output outputs/check --validate-only
 python scripts/claude_code_harness.py inference \
   --config private/inference.json --output outputs/inference
 ```
 
-Configure each model's Anthropic-compatible `base_url` and `cli_model`. An optional `route_model` starts a loopback compatibility proxy which substitutes the requested upstream model; it **does not translate OpenAI/Responses protocols into Anthropic**. Non-Anthropic models require a gateway implementing Anthropic messages, tools and image inputs. Record and inspect both configured and returned model IDs; model names alone are not proof of the underlying provider. `effort` records the requested CLI setting, not a claim that every provider honors it.
+`npm run paper:inference -- ...` is an equivalent entry point using Python 3 on PATH. `--validate-only` checks configuration structure and protocol constraints; it does not check files, credentials, writable seats, quotas or service availability.
 
-Each configured account runs a sequential queue; independent account queues run up to `concurrency`. OS locks also protect the account identity and file across processes. Set the same `FIGMA_HARNESS_LOCK_DIR` for runners sharing accounts, and use canonical, unique account identities. The runner uses the supplied OAuth `access_token` file; obtaining/refreshing OAuth and provisioning editable copies are prerequisites, not automated here. See [the protocol](docs/PROTOCOL.md).
+Each task/model gets a distinct writable native copy of its read-only source Starter File. The original query contains the source URL once; only that URL is replaced for execution. The four reference pages are `00 · Start Here`, `01 · Foundations`, `02 · Components` and `03 · Media`. A separate, initially empty `03 · Workspace` receives the design. The agent can inspect, create, take screenshots and refine through exactly four Figma MCP tools: `whoami`, `get_metadata`, `get_screenshot` and `use_figma`.
 
-Generation is successful only when the CLI completes, the screen count passes and the **v2 blank-screen check** passes. An unavailable check remains an error. Acceptance is not a semantic requirement-satisfaction score. The runner preserves each attempt and does not clear or retry an existing Figma workspace automatically.
+Claude Code owns every model/tool loop. The harness schedules isolated CLI processes, takes account/file locks, records telemetry, and runs deterministic screen-count and blank-screen checks. It does not launch an alternative direct model loop. A failed generation remains failed even if the file happens to contain enough frames.
 
-## Three-model judging
+Configure `paper_model`, `cli_model`, the Anthropic-compatible `base_url`, `api_key_env`, and `returned_model_prefixes` per route. Optional `route_model` starts a loopback routing proxy; it does not translate OpenAI Responses into Anthropic messages. The recorded returned model labels help detect routing errors but are not proof of an underlying provider's identity.
 
-`examples/judges.example.json` specifies three distinct judge routes, three repetitions each and concurrency 8. Supply all artifact PNGs, the original task query and a layer-summary JSON from the final `screen-inventory.json`. Configure `gate_policy` explicitly: `disabled` sums the 22 scores; `required` additionally applies the rubric's G0 gate. Keep that policy fixed within a comparison.
+`scope: subset` is for local smoke tests or explicitly scoped comparisons. `scope: full` requires 84 tasks, 783 required screens and all eleven generation models, yielding 924 task/model jobs. The dataset itself is not included. Do not relabel a subset as a full benchmark run.
+
+## Three-judge scoring
+
+Copy `examples/judges.example.json` to a private directory and configure three independent routes: Claude Opus 5.5, GPT-6.1 Sol and DeepSeek V4.1 Flash. The generating DeepSeek model is V4 Flash; it is a separate identity from the V4.1 Flash judge.
 
 ```bash
 python scripts/claude_code_harness.py judge \
-  --config private/judges.json --output outputs/judges --validate-only
+  --config examples/judges.example.json --output outputs/check --validate-only
 python scripts/claude_code_harness.py judge \
-  --config private/judges.json --output outputs/judges
+  --config private/judges.json \
+  --from-inference outputs/inference/BATCH_DIRECTORY \
+  --output outputs/judges
 ```
 
-Each repetition starts a fresh CLI context with only `Read` and no MCP server. Every screenshot must produce a successful image Read result. Missing images, malformed scores, timeouts and API errors stay incomplete; they never become zero scores. Each artifact/judge mean is published only after all repetitions complete, and the three-judge mean only after all judges complete. Raw score evidence and observed CLI telemetry remain in private output folders.
+`npm run paper:judge -- ...` is equivalent. `--from-inference` imports every artifact from a complete, accepted new-protocol batch and rejects missing/failed jobs. Alternatively, configure explicit artifacts with the original query, final inventory, matching layer summary, expected screen count, and every product-frame PNG with its node ID. All repetitions use frozen copies of the same evidence.
 
-## Human Arena
+The protocol requires three independent CLI contexts per judge, with seeds **42, 102 and 423**, and explicit `gate_policy: required`. Each context has only `Read` and no MCP server; every PNG must produce a successful image tool result. The 22 scored criteria sum to 53; G0 is a separate viability gate. Missing images, malformed/missing items, invalid evidence, timeouts and API failures remain missing, not zero scores. A valid G0 failure can produce a genuine zero.
+
+The loopback proxy puts the requested seed into upstream message requests and records forwarding receipts. This needs a compatible gateway: unsupported seed requests fail rather than silently dropping the seed. Receipts prove transmission and HTTP acceptance; provider-side random-seed enforcement remains `unverified` unless independently established. Do not describe three unseeded repetitions as seeded passes or claim deterministic commercial outputs from these receipts alone.
+
+Results include per-judge three-pass means and sample standard deviations, artifact means and dimension percentages in `scores.json`, and equal-task-weight model summaries in `model-scores.json`. A missing repetition prevents that judge's mean; an incomplete judge block prevents the artifact mean. Missing tasks also prevent the configured model aggregate. Full judging needs 8,316 independent invocations. The [protocol](docs/PROTOCOL.md) specifies inputs, checks and limitations.
+
+## Human Arena framework
+
+Start a local synthetic demo:
 
 ```bash
 npm run demo
-# In a second local terminal:
+# In another terminal, inspect the generated private access codes:
 cat outputs/arena-demo/access.json
-# Open http://127.0.0.1:18186 and enter a generated reviewer access code.
+# Open http://127.0.0.1:18186
 ```
 
-Use a fresh demo directory on subsequent starts: `npm run demo -- outputs/demo-2`. For a real frozen Arena snapshot:
+Use a fresh directory on a later start: `npm run demo -- outputs/demo-2`. To run your own private round:
 
 ```bash
 npm run arena -- --directory private/arena-round --host 127.0.0.1 --port 18186
 ```
 
-A round requires `snapshot.json` and its verified local media. The server creates private access codes and a SQLite database. Preserve these to resume review. Admin endpoints require admin access by default. Run behind an HTTPS reverse proxy and use `--secure-cookies true` for remote deployments. Keep live Figma links disabled during blinded review; author/model names inside screenshots must also be redacted by the dataset curator.
+The framework includes blinded pairwise comparison, per-screen review, progress persistence, annotations, incremental ranking, score display and administration. Offline candidate revision/model expansion helpers preserve unaffected votes and progress on private database clones. Cohort task counts and model identities are supplied by the local manifest, not embedded production data.
 
-To display fresh harness scores in an Arena round, use candidate IDs as artifact IDs and provide the exact frozen PNGs in their snapshot order:
+A real round needs a private frozen snapshot and its local media. These runtime inputs and the generated SQLite/access files are excluded from Git. No live round, production task list, candidate images or actual ballots are bundled. Admin endpoints require access by default; live Figma links remain off for blinded review. For remote deployment, configure HTTPS and `--secure-cookies true` explicitly.
+
+Bind a new judge batch to your own frozen Arena revision:
 
 ```bash
 node scripts/export-harness-arena-scores.mjs \
   --arena private/arena-round --batch outputs/judges/BATCH_DIRECTORY \
-  --config private/judges.json --output private/arena-scores
+  --output private/arena-scores
 npm run arena -- --directory private/arena-round \
   --judge-scores-directory private/arena-scores
 ```
 
-The bridge verifies the configuration hash, rubric, repetitions and image hashes against the frozen candidate revision. Incomplete judge blocks remain missing.
+The bridge verifies the batch's frozen configuration, rubric, seeded repetitions, successful image reads and exact screenshot hashes. Incomplete judge blocks remain absent. It writes only to the specified local private directory and does not publish data.
 
-## Research scope
+## Framework-only publication
 
-This release identifies its framework as `claude-code` and retains the actual CLI version, returned models and usage. Historical experiments may have used different orchestration, routing or gate settings. Publishing this implementation does not retroactively establish the provenance of any historical result or guarantee identical outputs. Paper claims must be tied to the run manifests of the experiments actually reported. The dataset and historical result bundles are separate releases.
+```bash
+npm run release:check:working
+# Stage explicitly reviewed source paths, then inspect the exact Git index:
+npm run release:check
+python scripts/check-release.py --tree HEAD --history
+```
+
+The release check allows framework text, documented placeholder examples and the rubric; it rejects runtime manifests, binary media, datasets, archives, credentials and detected private identifiers. The active GitHub Actions workflow runs this check plus offline Node/Python tests. It does not upload runtime artifacts. See [the publication policy](docs/RELEASE_POLICY.md).
+
+This release does not establish the provenance of historical experiments, certify real provider seed support, or reproduce paper results. Paper claims must be tied to the actual experiment manifests, data and votes, which remain separate from this repository.

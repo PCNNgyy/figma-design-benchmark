@@ -65,3 +65,11 @@ test('a later product-content failure cannot be overridden by the old captured-d
  fs.writeFileSync(path.join(dir,'screen-content-check.json'),JSON.stringify({kind:'arena-product-content-acceptance/v1',rule:'blank-screen-pixels/v2',status:'failed',candidates:104,blank_images:10,results:[]}));
  assert.throws(()=>validateArenaSnapshot(snapshot,dir),/content acceptance failed/);
 });
+
+test('the framework accepts a declared synthetic cohort without fixed production task or model counts',t=>{
+ const {dir,snapshot}=fixture(t,4,4);
+ assert.equal(validateArenaSnapshot(snapshot,dir),snapshot);
+ assert.equal(snapshot.candidates.length,16);
+ const changed=structuredClone(snapshot);changed.captured_delivery.task_count=5;
+ assert.throws(()=>validateArenaSnapshot(changed,dir),/task count/);
+});

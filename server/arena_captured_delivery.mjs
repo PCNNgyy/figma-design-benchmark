@@ -25,7 +25,7 @@ export function validateCapturedManifest(snapshot,directory){
  if(manifest.kind!==CAPTURED_DELIVERY_KIND||manifest.plan_hash!==snapshot.captured_delivery.plan_hash
    ||byHash.size!==snapshot.candidates.length||manifest.items.length!==snapshot.candidates.length)throw Error('Captured review provenance differs');
  const models=snapshot.captured_delivery.model_ids;
- if(new Set(models).size!==models.length||![8,10].includes(models.length))throw Error('Captured review model pool differs');
+ if(!Array.isArray(models)||new Set(models).size!==models.length||models.length<2)throw Error('Captured review model pool differs');
  for(const c of snapshot.candidates){
   const row=byHash.get(c.delivery_row_sha256),{delivery_row_sha256,...body}=c;
   if(!row||JSON.stringify(body)!==JSON.stringify(row.candidate)
@@ -35,7 +35,7 @@ export function validateCapturedManifest(snapshot,directory){
  // Older manifests predate an explicit task count and contain thirteen tasks.
  // New cohorts bind their declared size in both immutable envelopes.
  const taskCount=snapshot.captured_delivery.task_count??13;
- if(![13,20].includes(taskCount)||groups.size!==taskCount
+ if(!Number.isInteger(taskCount)||taskCount<1||groups.size!==taskCount
    ||(snapshot.captured_delivery.task_count!==undefined&&manifest.task_count!==taskCount))throw Error('Captured review task count differs');
  for(const group of groups.values())if(group.length!==models.length||models.some(id=>!group.some(c=>c.model_id===id)))throw Error('Incomplete captured review matrix');
 }

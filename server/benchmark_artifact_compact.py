@@ -13,7 +13,7 @@ from benchmark_frames import FIGMA_PRODUCT_FRAME_PREDICATE, benchmark_product_fr
 
 def artifact_code(file_key):
     return FIGMA_PRODUCT_FRAME_PREDICATE + r"""
-const matches=figma.root.children.filter(p=>/^03\s*[·.\-—]/.test(p.name));
+const matches=figma.root.children.filter(p=>/^03\s*[·.\-—]\s*Workspace\s*$/i.test(p.name));
 if(matches.length!==1)throw new Error('Expected one final Workspace');
 const w=matches[0];await w.loadAsync();const boards=[];
 figma.skipInvisibleInstanceChildren=false;
