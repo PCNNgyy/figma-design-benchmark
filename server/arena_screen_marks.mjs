@@ -7,8 +7,6 @@ const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const blind=name=>String(name).replace(/(?:claude\s*)?(?:opus|fable|gemini|gpt|glm|qwen|kimi)(?:[\s._-]*[\d.]+)?(?:\s*(?:flash|astra))?/gi,'匿名稿件');
 
-// A mark belongs to one frozen screen and one reviewer. Seeing that screen
-// again in another pair/round must not create another annotation or a vote.
 export function createScreenMarks({db,directory,snapshotHash,candidates,catalog,sides,currentPair,assertActive,assertLoaded}) {
   db.exec(`CREATE TABLE IF NOT EXISTS screen_case_marks (
     reviewer_id TEXT NOT NULL REFERENCES reviewers(id),

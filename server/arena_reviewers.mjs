@@ -2,8 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { seal, verifySeal } from './benchmark_protocol.mjs';
 
-// Participation can change without replacing the frozen artifacts or votes.
-// The source-bound policy is recorded in exports and the database event log.
 export function readArenaReviewers(directory, snapshot, snapshotHash, credentials) {
   const file = path.join(directory, 'reviewers.json');
   const planned = snapshot.version === 3 ? snapshot.protocol.reviewers : 2;

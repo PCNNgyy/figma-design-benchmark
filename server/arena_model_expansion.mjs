@@ -4,8 +4,6 @@ import {addRankingModels,advanceRanking} from './arena_incremental_sort.mjs';
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const model=c=>({model_id:c.model_id,candidate_id:c.id,version:hash([c.id,c.run_id,c.workspace_id,c.images.map(i=>i.sha256)])});
 
-// Run against an offline clone. Existing evidence and pending screen work stay
-// attached to the same session; added models follow its original model order.
 export function migrateModelExpansion({db,previous,snapshot,expectedAddedIds,seed,archiveDirectory}){
  const old=new Map(previous.candidates.map(c=>[c.id,c])),current=new Map(snapshot.candidates.map(c=>[c.id,c]));
  if(old.size!==previous.candidates.length||current.size!==snapshot.candidates.length||[...old].some(([id,c])=>JSON.stringify(c)!==JSON.stringify(current.get(id))))throw Error('Expansion must preserve every existing candidate');
@@ -30,8 +28,6 @@ export function migrateModelExpansion({db,previous,snapshot,expectedAddedIds,see
    const extra=added.filter(c=>c.case_id===row.case_id).sort((a,b)=>order(a).localeCompare(order(b))),models=[...existing,...extra.map(model)];
    if(!extra.length)throw Error('Every task must have its authorized additions');
    let next=addRankingModels(state,extra.map(c=>c.model_id));
-   // An unfinished comparison keeps the exact cursor and partial screen votes.
-   // A completed round starts by comparing the first two new models.
    if(state.phase==='complete')next=advanceRanking(next,db.prepare('SELECT * FROM incremental_sort_votes WHERE session_id=? AND active=1 ORDER BY created_at,rowid').all(row.id));
    const scope=hash({snapshot_hash:digest,case_id:row.case_id,reviewer_id:row.reviewer_id,session_id:row.source_session_id||row.id,models:models.toSorted((a,b)=>a.model_id.localeCompare(b.model_id))});
    db.prepare('UPDATE incremental_sort_sessions SET models=?,scope_hash=?,state=? WHERE id=?').run(JSON.stringify(models),scope,JSON.stringify(next),row.id);

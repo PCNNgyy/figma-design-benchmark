@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""FigmaEval CVPR protocol: Claude Code inference and seeded 3 x 3 judging."""
 import argparse
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -67,7 +66,6 @@ def resolve(base, value):
 
 
 def validate_starter(snapshot):
-    """Check the paper's four references by name, not the legacy 03 prefix."""
     required = {'00 Start Here', '01 Foundations', '02 Components', '03 Media'}
     seen = set()
     for page in snapshot['pages']:
@@ -110,7 +108,6 @@ def artifact_fingerprint(artifact, base):
 
 
 def freeze_config(config, base, run, mode):
-    """All workers use one local snapshot, never nine independently mutable inputs."""
     frozen = json.loads(json.dumps(config))
     tasks = {}
     def copy_input(source, destination):
@@ -155,8 +152,6 @@ def freeze_config(config, base, run, mode):
 
 @contextmanager
 def lease(name):
-    # Shared across output directories/processes. Never start another run for a
-    # busy identity or copy. Flock is held until generation AND acceptance finish.
     root = Path(os.environ.get('FIGMA_HARNESS_LOCK_DIR', str(Path.home() / '.cache/figma-harness/locks')))
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (root / (digest(name.encode()) + '.lock')).open('a') as handle:
@@ -176,7 +171,6 @@ def terminate(proc):
 
 
 def execute(argv, *, directory, env, prompt, timeout, out, err):
-    """No shell; terminate the complete CLI/MCP process group on timeout."""
     with Path(out).open('w') as stdout, Path(err).open('w') as stderr:
         proc = subprocess.Popen(argv, cwd=directory, env=env, stdin=subprocess.PIPE,
                                 stdout=stdout, stderr=stderr, text=True, start_new_session=True)
@@ -234,7 +228,6 @@ def run_cli(config, model, case, prompt, *, mcp, judge=False, system_prompt=None
     work = case / 'work'
     work.mkdir(exist_ok=True)
     settings = case / 'settings.json'
-    # No shell, filesystem mutation, arbitrary fetch, skills, agents or inherited MCP.
     tools = ['Read'] if judge else ['mcp__figma__whoami', 'mcp__figma__get_metadata',
                                     'mcp__figma__use_figma', 'mcp__figma__get_screenshot']
     save(settings, {'permissions': {'allow': tools,
@@ -356,7 +349,6 @@ def infer_one(config, job, model, account, case, base):
     save(case/'context.json', {'query': query, 'figma_url': job['figma_url'], 'identity': account.get('identity')})
     context = node_json(config, 'harness-context.mjs', 'inference', case/'context.json')
     mcp, file_key = prepare_mcp(config, account, job, case, base)
-    # Identity AND file locks cover independent scheduler processes as well.
     with lease('account:' + account.get('identity', str(resolve(base, account['auth_file']))).casefold()), lease('file:' + file_key):
         starter = asyncio.run(asyncio.wait_for(inspect(str(mcp), file_key), config.get('check_timeout_seconds', 600)))
         save(case/'starter-inventory.json', starter)
@@ -365,7 +357,6 @@ def infer_one(config, job, model, account, case, base):
         if metrics['status'] != 'generated':
             return metrics
         save(case/'generation.json', metrics)
-        # A separate deterministic read-only check. No model judges acceptance.
         async def inspect():
             return await asyncio.wait_for(inspect_compact(str(mcp), file_key), config.get('check_timeout_seconds', 600))
         inventory = asyncio.run(inspect())
@@ -553,9 +544,7 @@ def worker(config_file, mode, row_id, case, judge_id=None, repetition=1):
             judge = next(m for m in config['judges'] if m['id']==judge_id)
             result = judge_one(config, artifact, judge, repetition, case, base)
     except Exception as error:
-        # Preserve metrics even if acceptance/score parsing fails after generation.
         metrics = read(case/'generation.json') if (case/'generation.json').exists() else {}
-        # Exception messages may contain a remote body; store only the type here.
         result = {**metrics, 'status': 'error', 'error_type': type(error).__name__}
         message = str(error)
         for m in config.get('models', []) + config.get('judges', []):
@@ -699,7 +688,6 @@ def main():
             return {'id':row['id'],'judge_id':judge_id,'repeat':repeat,'status':'worker_failed'}
         return read(case/'result.json')
     if args.mode=='inference':
-        # One sequential queue per account; account queues run concurrently.
         groups=[[r for r in config['jobs'] if r['account_id']==a['id']] for a in config['accounts']]
         def account_queue(rows):
             return [launch((r,None,1)) for r in rows]

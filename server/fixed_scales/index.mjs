@@ -1,12 +1,3 @@
-// 固定量表注册表：一条 run 可以按多种量表各评一份（scale_scores.method 区分，基准也按 method 各一条）。
-//
-// 加/改一个量表 = 改本目录下的定义文件，index.mjs 和前端不用动：
-//   { key, name, short, status: "stable"|"experimental", enabled, description, gate,
-//     questions: [{ key, dimension, layer?, perspective?, scope?, text, standards?: {2,1,0}, layer_only? }],
-//     max, values, prompt_template, layer_label, layer_hints }
-// - status=experimental 的（题池之类）只在带 all=1 时列出，工作台默认看不到；
-// - enabled=false 的完全不注册（fixed_v2 定稿前就是这个状态）；
-// - import 时做一遍自检：键重复、满分对不上、模板缺占位符都直接抛——启动就炸比评到一半炸好。
 import { REQUIRED_FIXED20_BLANKS, questionMax } from "../fixed20_scale.mjs";
 import fixed20 from "./fixed20.mjs";
 import fixedV3Pool from "./fixed_v3pool.mjs";
@@ -24,7 +15,6 @@ function validate(def) {
     if (question.key === def.gate?.key) throw new Error(`量表 ${def.key} 的 ${question.key} 与门槛题重名`);
     keys.add(question.key);
   }
-  // 每题满分可以不同（v4：信息组织、布局质量 0-3，其余 0-2）；总满分必须等于各题满分之和
   for (const question of def.questions) {
     if (question.max !== undefined && !(Number.isInteger(question.max) && question.max >= 1 && question.max <= 5)) {
       throw new Error(`量表 ${def.key} 的 ${question.key} 满分 ${question.max} 非法（应为 1~5 的整数）`);
@@ -59,7 +49,6 @@ export function listScaleMethods({ all = false } = {}) {
   return all ? METHODS : METHODS.filter((def) => def.status === "stable");
 }
 
-// 给接口用的精简形状：题目正文通过 /api/scale-defaults?method= 单独取
 export function publicScaleMethod(def) {
   return {
     key: def.key,

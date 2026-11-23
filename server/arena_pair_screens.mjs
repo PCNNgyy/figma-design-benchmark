@@ -10,8 +10,6 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status});}
 export const SCREEN_COMPARISON_KIND='figma-arena-pair-screens/v1';
 const blind=name=>String(name).replace(/(?:claude\s*)?(?:opus|fable|gemini|gpt|glm|qwen|kimi)(?:[\s._-]*[\d.]+)?(?:\s*(?:flash|astra))?/gi,'匿名稿件');
 
-// Metadata is added alongside the immutable cohort. PNG bytes, run selection,
-// CC scores and the original snapshot are never rewritten.
 export function buildScreenCatalog(snapshot,manifest,requirements=null){
   const items=new Map((manifest.items||[]).map(item=>[item.run_id,item]));
   const candidates=snapshot.candidates.map(c=>{
@@ -165,8 +163,6 @@ export function createPairScreenReview({db,catalog,snapshotHash,candidates,curre
     if(body.plan_hash!==p.hash)fail(409,'画板对应关系已更新，请刷新');
     if(!row||!['A','B'].includes(side)||body.image_index!==null&&(!Number.isInteger(body.image_index)||!selected(p.display[side]).images.some(im=>im.index===body.image_index)))fail(400,'只能选择本题产品屏，组件或附属画板不参与逐屏比较');
     if(row[side]===body.image_index)return state(reviewer,pair);
-    // Swap, never duplicate/drop an image. Different image order is not a
-    // semantic match; the reviewer can explicitly correct an alias here.
     const other=p.rows.find(r=>r.id!==row.id&&r[side]===body.image_index&&body.image_index!==null),previous=structuredClone(p.rows);
     if(other){other[side]=row[side];other.manual=true;}
     else if(row[side]!==null)fail(400,'此操作会遗漏画板，请选择另一张画板进行交换');
@@ -191,8 +187,6 @@ export function createPairScreenReview({db,catalog,snapshotHash,candidates,curre
     plans:db.prepare('SELECT * FROM pair_screen_plans ORDER BY reviewer_id,pair_id').all().map(r=>({...r,rows:JSON.parse(r.body),body:undefined})),
     votes:db.prepare('SELECT * FROM pair_screen_votes ORDER BY reviewer_id,pair_id,slot_id').all(),
     image_views:db.prepare('SELECT * FROM pair_screen_image_views ORDER BY opened_at').all()};}
-  // Correct pending work at startup. Submitted historical decisions retain
-  // their original process; only invalid pending screen votes are archived.
   for(const saved of db.prepare('SELECT * FROM pair_screen_plans').all()){
     const pair=db.prepare('SELECT * FROM pairs WHERE id=?').get(saved.pair_id);reconcile(saved.reviewer_id,pair,saved);
   }

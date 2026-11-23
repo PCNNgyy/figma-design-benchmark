@@ -22,8 +22,6 @@ export function createIncrementalEngine({db, snapshot, snapshotHash, seed, pairs
     CREATE TABLE IF NOT EXISTS incremental_sort_derivations (
     id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES incremental_sort_sessions(id), revision INTEGER NOT NULL,
     winner TEXT NOT NULL, loser TEXT NOT NULL, proof TEXT NOT NULL, created_at TEXT NOT NULL);`);
-  // SQLite cannot drop an inline UNIQUE constraint. Rebuild only this parent
-  // table, retaining IDs and every child reference; check FKs before commit.
   if(!db.prepare('PRAGMA table_info(incremental_sort_sessions)').all().some(c=>c.name==='round')){
     db.exec('PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE');
     try{
@@ -118,8 +116,6 @@ export function createIncrementalEngine({db, snapshot, snapshotHash, seed, pairs
         imported_ballot_ids:legacyVotes.map(v=>v.id),models}),new Date().toISOString());
     return advance(read(id));
   }
-  // Carry one exact legacy review session per task. Never pool different
-  // designers or task sessions, and never turn its four-place order into votes.
   function migrateLegacy() {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tournaments'").get())return;
     transaction(()=>{
@@ -224,10 +220,6 @@ export function createIncrementalEngine({db, snapshot, snapshotHash, seed, pairs
     if(req.correction_of){
       const old=db.prepare('SELECT * FROM incremental_sort_votes WHERE id=? AND session_id=? AND active=1').get(req.correction_of,row.id);
       if(!old)reject(409,'该投票已被复核，请刷新');
-      // A deliberate re-comparison answers the pair, not just one historical
-      // row. Retire every earlier observation of this exact pair in this exact
-      // session; otherwise confirming either direction can leave its opposite
-      // active forever. Other pairs, reviewers and rounds stay independent.
       superseded=votes(row.id).filter(v=>v.active&&((v.a===old.a&&v.b===old.b)||(v.a===old.b&&v.b===old.a)));
       for(const v of superseded)db.prepare('UPDATE incremental_sort_votes SET active=0 WHERE id=? AND session_id=?').run(v.id,row.id);
     }
@@ -274,8 +266,6 @@ export function createIncrementalEngine({db, snapshot, snapshotHash, seed, pairs
   function exported(){return db.prepare('SELECT id FROM incremental_sort_sessions ORDER BY reviewer_id,sequence').all().map(r=>getProgress(r.id));}
   function effectiveBallotIds(){return new Set(db.prepare('SELECT ballot_id FROM incremental_sort_votes WHERE active=1').all().map(v=>v.ballot_id));}
   function progress(reviewerId) {
-    // Image requests also check the current assignment. Keep summary reads
-    // independent of other reviewers' histories and potentially large proofs.
     const sessions=db.prepare('SELECT id,case_id,state,review_request_id FROM incremental_sort_sessions WHERE reviewer_id=? ORDER BY sequence,created_at,id').all(reviewerId)
       .map(r=>({id:r.id,case_id:r.case_id,status:r.review_request_id?'reviewing':JSON.parse(r.state).status}));
     const observed=db.prepare('SELECT v.* FROM incremental_sort_votes v JOIN incremental_sort_sessions s ON s.id=v.session_id WHERE s.reviewer_id=?').all(reviewerId),active=observed.filter(v=>v.active);

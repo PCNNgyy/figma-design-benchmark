@@ -1,4 +1,3 @@
-"""Attach API-contract guidance while preserving failed tool results as failures."""
 import re
 from mcp.types import TextContent
 

@@ -1,4 +1,3 @@
-"""Synthetic acceptance and process isolation regressions; no benchmark fixtures."""
 import importlib.util
 import os
 from pathlib import Path

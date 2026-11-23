@@ -1,5 +1,3 @@
-// IndexedDB works on the existing HTTP review origin as well as HTTPS.
-// Store compressed image blobs, never decoded bitmaps, votes or model identities.
 export function createImageStorage(indexedDB=globalThis.indexedDB){
   let opening;
   function open(){
@@ -65,7 +63,6 @@ export function createBrowserImageCache({api,localPath,storage=createImageStorag
     async function worker(){
       while(running&&version===generation&&cursor<queue.length){
         const im=queue[cursor++],url=key(im.url),controller=new AbortController();controllers.add(controller);
-        // A stalled download must become retryable instead of occupying a slot forever.
         const timeout=setTimeout(()=>controller.abort(),90000);
         try{
           const response=await fetchImage(url,{credentials:'same-origin',cache:'force-cache',priority:'low',signal:controller.signal});
@@ -90,12 +87,11 @@ export function createBrowserImageCache({api,localPath,storage=createImageStorag
     if(version===generation){running=false;status=queue.some(im=>!present.has(key(im.url)))?'partial':'complete';notify();}
   }
   async function source(url){
-    // Explicit retry bypasses both IndexedDB and any stale in-memory source.
     if(/[?&]_retry=/.test(url))return url;
     try{
       const row=await storage.get(url);
       if(row?.blob?.size&&row.blob.size===row.bytes)return URL.createObjectURL(row.blob);
-    }catch{/* Storage can be unavailable in private browsing; use normal loading. */}
+    }catch{ }
     return url;
   }
   async function mount(img,url,valid=()=>img.isConnected){

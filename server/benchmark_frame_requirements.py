@@ -1,4 +1,3 @@
-"""Extract an explicit frame total; never infer a requirement from generated output."""
 import re
 
 
@@ -10,8 +9,6 @@ def expected_frame_count(brief):
     ]
     values = {int(n) for pattern in legacy_patterns for n in re.findall(pattern, brief, re.I)}
     legacy_declared = bool(values)
-    # New designer starters state the total either in the viewport metadata
-    # or in an explicit "Deliver N named editable frames" sentence.
     explicit = {int(n) for n in re.findall(
         r'deliver\s+(\d+)\s+named\s+editable\s+frames?', brief, re.I)}
     explicit.update(int(n) for n in re.findall(
@@ -23,8 +20,6 @@ def expected_frame_count(brief):
     if not 1 <= count <= 200:
         raise ValueError('Required frame count is outside the supported range')
     if explicit and not legacy_declared:
-        # Exclude fixed-data references to screen names. The remaining numbered
-        # headings must agree with the declared total, including totals >24.
         scope = re.split(r'Fixed data\s*&\s*copy|Deliver in your own Figma file', brief, flags=re.I)[0]
         headings = re.findall(r'^\s*(\d{2,3}[A-Z]?_[^\n]+)$', scope, re.M)
         numbers = sorted({int(re.match(r'\d+', name).group()) for name in headings})

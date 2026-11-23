@@ -1,4 +1,3 @@
-"""Read-only, deterministic blank-screen acceptance after native inference."""
 import asyncio
 from contextlib import contextmanager
 import datetime
@@ -27,7 +26,6 @@ THRESHOLDS = {'white_channel_min': 250, 'blank_white_fraction': 0.9999,
 
 @contextmanager
 def readonly_check_lease(base, file_key):
-    """Deduplicate checks of a file without taking an inference account slot."""
     if not re.fullmatch(r'[A-Za-z0-9]+', file_key):
         raise ValueError('Invalid Figma file key')
     directory = Path(base) / 'locks'
@@ -38,7 +36,6 @@ def readonly_check_lease(base, file_key):
 
 
 def workspace_identity(snapshot):
-    """Compare original geometry without treating newly added evidence as edits."""
     workspace = snapshot.get('workspace')
     return {'file_key': snapshot['file_key'], 'workspace': None if workspace is None else {
         'id': workspace['id'], 'name': workspace['name'],
@@ -47,7 +44,6 @@ def workspace_identity(snapshot):
 
 
 def apply_recheck_fields(task, fields, count_passed, receipt, checked_at):
-    """A repaired check may recover a prior check failure, never an inference failure."""
     original_status = task.get('pre_white_screen_check_status', task['status'])
     original_error = task.get('pre_white_screen_check_error', task.get('error', ''))
     accepted = original_status == 'success' and count_passed and fields['white_screen_check_passed']
@@ -70,9 +66,6 @@ def image_metrics(path):
         fraction = sum(minimum.histogram()[THRESHOLDS['white_channel_min']:]) / (rgb.width * rgb.height)
         deviation = max(ImageStat.Stat(rgb).stddev)
         full_blank = fraction >= THRESHOLDS['blank_white_fraction'] and deviation <= THRESHOLDS['blank_stddev_max']
-        # Native status bars, home indicators and frame borders are visible
-        # pixels, but do not constitute delivered product content. Test the
-        # interior separately so a white shell cannot pass on its black chrome.
         x = int(rgb.width * THRESHOLDS['body_horizontal_inset_fraction'])
         top = int(rgb.height * THRESHOLDS['body_top_inset_fraction'])
         bottom = rgb.height - int(rgb.height * THRESHOLDS['body_bottom_inset_fraction'])
@@ -99,7 +92,6 @@ def submitted_frames(inventory, screen_result):
 
 
 def audit_captured_content(directory, frames):
-    """Recheck the actual delivery PNGs, not another capture's passed flag."""
     root = Path(directory).resolve()
     screens = []
     groups = {}
@@ -118,8 +110,6 @@ def audit_captured_content(directory, frames):
     return {'kind': 'captured-product-content/v1', 'rule': RULE,
             'status': 'failed' if blank or not screens else 'passed',
             'screens': screens, 'blank_screens': blank,
-            # Repeated legitimate screens are diagnostic evidence, not an
-            # automatic failure. A repeated empty shell fails on its pixels.
             'duplicate_groups': [{'sha256': sha, 'node_ids': [s['node_id'] for s in group],
                                   'blank': group[0]['blank']}
                                  for sha, group in groups.items() if len(group) > 1]}
@@ -127,8 +117,6 @@ def audit_captured_content(directory, frames):
 
 def structural_empty_frames(inventory, frames):
     summaries = {b['id']: b for b in inventory.get('layer_summary', {}).get('boards', []) if b.get('id')}
-    # Older captures do not have board IDs. Never infer emptiness from a missing
-    # summary or a zero text count: screenshots remain authoritative in that case.
     return [n for n in frames if n['id'] in summaries and summaries[n['id']]['nodes'] == 0]
 
 
@@ -177,16 +165,12 @@ async def check_blank_screens(config_file, file_key, inventory, screen_result, r
     else:
         empty = structural_empty_frames(inventory, frames)
         if empty:
-            # These are incomplete deliveries even when an empty frame has a
-            # colored fill. Record structural evidence, do not claim pixel proof.
             report.update(status='failed', method='empty-frame-structure',
                           blank_screens=[{'node_id': n['id'], 'name': n['name'], 'reason': 'zero_descendant_nodes'} for n in empty],
                           pixel_check_skipped='Confirmed empty product frames already fail acceptance')
         else:
             config = json.loads(Path(config_file).read_text())
             env = config['mcpServers']['figma']['env']
-            # Scoped to this read-only acceptance operation. Evaluation capture
-            # remains a separate phase with its own policy and full-size images.
             policy = folder / 'capture-policy.json'
             _save(policy, {'capture_screenshots': True, 'purpose': RULE})
             settings = {**env, 'FIGMA_CAPTURE_POLICY_FILE': str(policy),
@@ -215,8 +199,6 @@ async def check_blank_screens(config_file, file_key, inventory, screen_result, r
                         path = folder / 'frames' / entry['file']
                         metrics = image_metrics(path)
                         if metrics['blank'] and not entry.get('native_capture'):
-                            # Confirm a white page crop against the actual node
-                            # before failing, avoiding crop/layout artifacts.
                             confirm = folder / 'native-confirmation'
                             (confirm / '_debug').mkdir(parents=True, exist_ok=True, mode=0o700)
                             native = await capture_native_frame(read_token(options.auth_file, ''),

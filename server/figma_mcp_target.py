@@ -1,4 +1,3 @@
-"""Reject model tool calls outside their assigned copy before contacting Figma."""
 
 
 def assert_assigned_file(name, arguments, assigned_file_key):

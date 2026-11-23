@@ -34,8 +34,6 @@ export function createTournamentEngine({ db, snapshot, seed, pairs, pairById, sa
     const votes = db.prepare(`SELECT b.*,t.step FROM tournament_battles t JOIN ballots b ON b.pair_id=t.pair_id
       WHERE t.tournament_id=? AND b.reviewer_id=? ORDER BY t.step`).all(row.id, row.reviewer_id);
     const valid = votes.filter(v => v.outcome === 'win');
-    // No winner can be inferred from an unable ballot. Retain the partial
-    // session for audit and continue with the next independently drawn task.
     const state = tournamentState(ids, valid.map(v => v.winner_id));
     return { ...row, candidate_ids: ids, state, skipped: votes.some(v => v.outcome === 'unable'), blocked: false };
   }
@@ -46,8 +44,6 @@ export function createTournamentEngine({ db, snapshot, seed, pairs, pairById, sa
       const sequence = row ? row.sequence + 1 : 0, cycle = Math.floor(sequence / groups.size);
       const caseIds = [...groups.keys()].sort((a, b) => order(`tasks:${reviewerId}:${cycle}:${a}`).localeCompare(order(`tasks:${reviewerId}:${cycle}:${b}`)));
       const caseId = caseIds[sequence % groups.size], id = digest(`${reviewerId}:${sequence}:${seed}`);
-      // Sorting independent keyed random values gives a uniformly sampled,
-      // ordered subset; this is independent of scores and all prior votes.
       const candidateIds = groups.get(caseId).map(c => c.id).sort((a, b) => order(`draw:${id}:${a}`).localeCompare(order(`draw:${id}:${b}`))).slice(0, 4);
       const selection=samplingPolicy?.algorithm===ACTIVE_SAMPLING?drawActiveTournament({group:groups.get(caseId),candidates:snapshot.candidates,pairs,
         ballots:getBallots?getBallots():db.prepare('SELECT * FROM ballots ORDER BY id').all(),policy:samplingPolicy,seed,drawId:id})
@@ -120,8 +116,6 @@ export function bradleyTerryRankings(candidates, pairs, votes) {
   const connected = reachable(false), stronglyConnected = n > 1 && models.every((_, start) => {
     const seen = new Set(); function visit(i) { if (seen.has(i)) return; seen.add(i); for (let j = 0; j < n; j++) if (wins[i][j]) visit(j); } visit(start); return seen.size === n;
   });
-  // Unregularized BT has no finite global MLE under separation. Report this
-  // explicitly rather than displaying arbitrary capped/regularized ratings.
   let strength = Array(n).fill(1), converged = false, iterations = 0;
   const totalWins = wins.map(row => row.reduce((a, b) => a + b, 0));
   if (stronglyConnected) for (iterations = 1; iterations <= 200; iterations++) {

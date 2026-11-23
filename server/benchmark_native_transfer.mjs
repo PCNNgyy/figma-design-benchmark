@@ -20,15 +20,11 @@ async function nativeDownload(page, click, timeout) {
   if (await verification.isVisible()) throw browserVerificationError();
   const downloaded = page.waitForEvent('download', { timeout });
   const blocked = verification.waitFor({ state: 'visible', timeout }).then(() => { throw browserVerificationError(); });
-  // Both listeners start before the action, including the verification dialog
-  // that can appear only after clicking Save local copy.
   const result = Promise.race([downloaded, blocked]); result.catch(() => {});
   await click();
   return result;
 }
 
-// Native export/import is necessary when Duplicate keeps a copy inside the
-// source organization. Neither operation calls MCP or mutates the source.
 export async function exportNativeTemplate({ page, config, record, identity }) {
   const sourceKey = figmaKey(record.source_figma_url);
   if (!path.isAbsolute(config.native_export_cache || "")) throw new Error("Native transfer requires a private export cache");
@@ -95,7 +91,6 @@ export async function nativeTransfer({ page, context, config, record, beforeDupl
     await page.getByTestId("ProfileButton").waitFor({ timeout: 45000 }); await identity();
     const expectedTeam = nativeDraftsDestination(config.destination), actualTeam = nativeDraftsDestination(page.url());
     if (!expectedTeam || expectedTeam !== actualTeam) throw new Error("Native import destination is not the approved team drafts");
-    // Figma mounts the import action after the navigation skeleton renders.
     await page.waitForTimeout(8000);
     await page.getByRole("button", { name: "New file", exact: true }).evaluate((button) => button.click());
     await page.getByText("Import", { exact: true }).click({ timeout: 30000 });
@@ -108,8 +103,6 @@ export async function nativeTransfer({ page, context, config, record, beforeDupl
         new Promise((resolve, reject) => { const until = Date.now() + 45000; const poll = () => chooser ? resolve() : Date.now() > until ? reject(new Error("No native import chooser")) : (chooserTimer=setTimeout(poll,100)); poll(); }),
       ]);
     } finally {clearTimeout(chooserTimer);}
-    // Prefer the actual import chooser. Teams can have unrelated hidden file
-    // inputs, so selecting the first input globally can target the wrong UI.
     let selectFile;
     if (chooser) selectFile=()=>chooser.setFiles(upload);
     else if (await importButton.isVisible()) {
@@ -117,8 +110,6 @@ export async function nativeTransfer({ page, context, config, record, beforeDupl
       await importButton.click();const actual=await selected;selectFile=()=>actual.setFiles(upload);
     } else if (await input.count()===1) selectFile=()=>input.setInputFiles(upload);
     else throw new Error('Native import chooser is ambiguous; no file was selected');
-    // Persist the side-effect intent immediately before file selection. A
-    // timeout after this point requires reconciliation, never another upload.
     beforeDuplicate();receipt.upload_attempted=true;receipt.upload_started_at=new Date().toISOString();persist();
     await selectFile();
     await page.getByText(title, { exact: true }).first().waitFor({ timeout: 180000 });

@@ -46,7 +46,7 @@ test('screen marks require authentication, a loaded product screen, evidence bin
   const saved=await f.request('/api/review/screen-mark',body,cookie);assert.equal(saved.status,200);assert.equal(saved.data.mark.revision,1);
   const next=(await f.request('/api/review/next',undefined,cookie)).data;
   assert.equal(next.pair.screen_marks.A.find(m=>m.image_index===0).label,'good');
-  assert.equal(next.pair.screen_marks.A.find(m=>m.image_index===1).label,null); // same PNG hash, different screen
+  assert.equal(next.pair.screen_marks.A.find(m=>m.image_index===1).label,null);
   assert.ok(!JSON.stringify(next).includes('SECRET_MODEL'));
   for(const table of ['ballots','pair_screen_votes','incremental_sort_votes'])assert.equal(f.store.db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n,0);
   assert.equal((await f.request('/api/admin/screen-marks')).status,403);

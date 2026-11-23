@@ -986,7 +986,6 @@ details.card[open] summary {
   }
 }
 
-/* Cohort selection preserves the existing review layout and task state. */
 .cohort-navigation{display:flex;gap:10px;flex-wrap:wrap;max-width:1440px;margin:18px auto 0;padding:0 24px}.cohort-navigation a{padding:9px 14px;border:1px solid #d8dfeb;border-radius:8px;text-decoration:none;background:#fff;color:#344054}.cohort-navigation a[aria-current="page"]{background:#eef2ff;border-color:#9aaaf5;color:#253e9d;font-weight:600}
 
 .saved-profiles [data-existing-reviewer] { flex:1 1 220px; min-width:0; white-space:normal; }

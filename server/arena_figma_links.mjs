@@ -40,7 +40,6 @@ export function readAnonymousFigmaLinks(directory,snapshot,digest){
   },size:entries.size};
 }
 
-// Used only by a local provisioning command after native Figma title checks.
 export function provisionAnonymousFigmaLinks(directory,verified){
  const snapshot=JSON.parse(fs.readFileSync(path.join(directory,'snapshot.json'))),digest=hash(JSON.stringify(snapshot));
  const keyFile=path.join(directory,'figma-links-key.json');

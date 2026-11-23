@@ -3,8 +3,6 @@ import {createHash, randomBytes} from 'node:crypto';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const reject = (status, message) => { throw Object.assign(new Error(message), {status}); };
 
-// Same first-visit name flow as the evaluation site. A private browser credential,
-// rather than a public reviewer ID or name, restores the server-side identity.
 export function arenaAccounts(db, legacyReviewers, {openRegistration = false} = {}) {
   db.exec(`CREATE TABLE IF NOT EXISTS reviewer_accounts (
     reviewer_id TEXT PRIMARY KEY REFERENCES reviewers(id), secret_hash TEXT UNIQUE NOT NULL,

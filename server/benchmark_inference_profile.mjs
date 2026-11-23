@@ -53,8 +53,6 @@ export function readRunInferenceProfile(runDir) {
   return profile;
 }
 
-// This runs inside each newly launched runner/proxy, never in an already
-// executing model process. Snapshot the operational policy once per run.
 export function prepareRunInferenceProfile(runDir) {
   const existing = readRunInferenceProfile(runDir);
   if (existing) return existing;
@@ -105,8 +103,6 @@ export function inferenceVersionFields(run) {
     inference_policy_hash: profile.policy_hash, effective_system_sha256: profile.effective_system_sha256 };
 }
 
-// Keep both the untouched client capture and the deterministic forwarded
-// system. The image audit also replays this conversion on captured requests.
 export function applyRunInferenceProfile(body, runDir, profile) {
   if (!profile) return 0;
   const original = fs.readFileSync(path.join(runDir, "benchmark-system.original.txt"), "utf8");

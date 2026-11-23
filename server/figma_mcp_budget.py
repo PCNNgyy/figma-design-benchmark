@@ -1,4 +1,3 @@
-"""Per-account scheduling shared by all benchmark MCP subprocesses."""
 import asyncio
 import errno
 import fcntl
@@ -30,8 +29,6 @@ def update_state(file, operation):
                     raise
                 time.sleep(0.05)
     with local_io(lambda: path.with_suffix(".lock").open("a")) as lock:
-        # AFS can return EAGAIN even for a blocking flock. Retry the local
-        # bookkeeping only; never replay a remote Figma mutation here.
         local_io(lambda: fcntl.flock(lock, fcntl.LOCK_EX))
         try:
             state = local_io(lambda: json.loads(path.read_text()))
@@ -65,12 +62,6 @@ def reserve(file, now, interval, *, defer_cooldown=False):
 
 
 def enforce_interval(file, interval, legacy_interval=4, now=None):
-    """Apply a stricter rate to live proxies without restarting inference.
-
-    Older proxies do not read min_interval_seconds. Their next_call_at still
-    identifies the reservation time, so a local watcher extends that slot
-    before the old interval expires. This function never calls Figma.
-    """
     checked_at = time.time() if now is None else now
     def operation(state):
         state["min_interval_seconds"] = max(interval, float(state.get("min_interval_seconds", interval)))
@@ -92,9 +83,6 @@ async def wait_for_slot(name):
         return
     interval = max(3.1, float(os.environ.get("FIGMA_MCP_MIN_INTERVAL", "4")))
     while True:
-        # Preparing a copy must not occupy the single submission worker for
-        # minutes while other accounts could run. An existing quota cooldown
-        # is a known pre-acceptance deferral, not another remote quota attempt.
         preflight = os.environ.get("FIGMA_MCP_USAGE_PHASE") in ("launch_preflight", "copy_preflight")
         delay = reserve(file, None, interval, defer_cooldown=preflight)
         if delay == -2:
@@ -131,8 +119,6 @@ def usage_event(request, event, **fields):
         finally:
             os.close(fd)
     except OSError:
-        # A remote write may already have committed. An audit disk error must
-        # never turn its successful result into a retryable tool failure.
         print("[figma-usage] local audit append failed; remote result was preserved", file=sys.stderr)
 
 

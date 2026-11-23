@@ -92,8 +92,6 @@ function ranked(models, scores) {
   });
 }
 
-// Expose only frozen-cohort scores and aggregates. Credentials, prompts, local
-// paths, raw API responses and account information never enter this result.
 export function readArenaJudgeScores(arenaDirectory, campaignDirectory) {
   const snapshotFile = path.join(arenaDirectory, 'snapshot.json');
   const campaignFile = path.join(campaignDirectory, 'campaign.json');

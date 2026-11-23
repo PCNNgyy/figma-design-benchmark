@@ -25,7 +25,6 @@ async function fixture(t,{openRegistration=true,basePath='',reviewerSelection=fa
   const url=`http://127.0.0.1:${server.address().port}${basePath}`;
   t.after(async()=>{await new Promise(r=>server.close(r));store.close();fs.rmSync(directory,{recursive:true,force:true});});
   const request=async(route,body,cookie,origin)=>{
-    // These fixtures restart on the same port; do not reuse a socket from the closed server.
     const response=await fetch(url+route,{method:body===undefined?'GET':'POST',headers:{connection:'close',...(body===undefined?{}:{'content-type':'application/json'}),...(cookie?{cookie}:{}),...(origin?{origin}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
     const text=await response.text();return{status:response.status,data:response.headers.get('content-type')?.includes('json')?JSON.parse(text):text,
       cookie:response.headers.get('set-cookie')?.split(';')[0],setCookie:response.headers.get('set-cookie')};

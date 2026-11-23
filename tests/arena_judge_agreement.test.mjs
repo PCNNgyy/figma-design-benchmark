@@ -20,7 +20,7 @@ test('agreement counts only observed ballots and exact ties, handles reversed si
   assert.equal(missing.human_agreement.agreement_rate,.5); assert.equal(result.human_comparisons.length,4);
   assert.equal(result.human_comparisons[1].j_outcome,'first');
   assert.equal(j.rows[0].human_agreement.compared,2);
-  assert.equal(data.judges[0].human_agreement,undefined); // cached machine aggregates are never mutated
+  assert.equal(data.judges[0].human_agreement,undefined);
 });
 
 test('unreviewed pairs and other task or run versions never enter agreement; empty samples are null',()=>{
@@ -30,7 +30,7 @@ test('unreviewed pairs and other task or run versions never enter agreement; emp
   assert.ok(r.judges.every(j=>j.human_agreement.agreement_rate===null&&j.human_agreement.compared===0));
   const actual=compareJudgesWithHumans(data,observed([vote(4)]));
   assert.equal(actual.judges[0].human_agreement.compared,1);
-  assert.equal(r.judges[0].human_agreement.compared,0); // independent request results
+  assert.equal(r.judges[0].human_agreement.compared,0);
 });
 
 function storeFixture(){
@@ -40,10 +40,10 @@ function storeFixture(){
   session.scope_hash=hash({snapshot_hash:'snapshot',case_id:'task',reviewer_id:'reviewer',session_id:'session',models:members.toSorted((a,b)=>a.model_id.localeCompare(b.model_id))});
   const sources=[1,2,3,4,5].map(id=>({...session,ballot_id:id,pair_id:'pair',a:'a',b:'b',winner:'b',outcome:'win',active:1}));
   const ballots=[1,2,3,4,5,6,7].map(id=>({id,reviewer_id:'reviewer',pair_id:'pair',outcome:'win',winner_id:'b'}));
-  ballots[2].reviewer_id='disabled'; // disabled identity
+  ballots[2].reviewer_id='disabled';
   ballots[3].outcome='unable';ballots[3].winner_id=null;
-  sources[4].models=JSON.stringify(members.map(m=>({...m,version:'old'})));sources[4].id='stale-session'; // version/scope mismatch
-  sources[1].active=0; // superseded correction
+  sources[4].models=JSON.stringify(members.map(m=>({...m,version:'old'})));sources[4].id='stale-session';
+  sources[1].active=0;
   const store={digest:'snapshot',incremental:{},candidates,pairById:new Map([['pair',{id:'pair',case_id:'task',first_id:'a',second_id:'b'}]]),
     isActiveReviewer:id=>id==='reviewer',scopedBallots:()=>ballots,
     db:{prepare:()=>({all:()=>sources.filter(s=>s.active===1)})}};
@@ -54,6 +54,6 @@ test('actual effective overall votes require active provenance, reviewer, and ex
   const {store}=storeFixture(),r=observedHumanComparisons(store);
   assert.deepEqual(r.votes.map(v=>v.ballot_id),[1]);
   assert.equal(r.excluded.unable,1); assert.equal(r.excluded.version_mismatch,1);
-  assert.equal(r.excluded.invalid,3); // superseded and ballots without actual sort-vote provenance
+  assert.equal(r.excluded.invalid,3);
   assert.equal(r.votes[0].outcome,'second');
 });

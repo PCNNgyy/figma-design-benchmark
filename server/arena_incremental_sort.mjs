@@ -1,5 +1,3 @@
-// Best-first order. The only preference evidence is an observed, active vote.
-// Inferred comparisons carry paths to those votes and never become ballots.
 export const INCREMENTAL_SORT = 'pairwise-incremental-merge/v1';
 
 export function preferenceGraph(ids, votes) {
@@ -20,7 +18,6 @@ export function preferenceGraph(ids, votes) {
     return null;
   }
   let cycle = null;
-  // A reverse path proves a cycle; save its actual vote IDs for review.
   findCycle: for (const [a, list] of edges) for (const e of list) {
     const back = path(e.to, a);
     if (back) { cycle = { models: [a, ...back.models], vote_ids: [e.vote_id, ...back.vote_ids] }; break findCycle; }
@@ -64,7 +61,6 @@ export function advanceRanking(input, votes, onDerivation = () => {}) {
   const s = structuredClone(input), graph = preferenceGraph(s.models, votes);
   s.pending = null; s.issue = null; s.status = 'running';
   if (graph.cycle) { s.status = 'paused-cycle'; s.issue = graph.cycle; return s; }
-  // A tied observation cannot be silently replaced by a transitive strict order.
   if (graph.ties.length) { s.status = 'paused-tie'; s.issue = { vote_ids: graph.ties.map(v => v.id) }; return s; }
   function compare(a, b) {
     const relation = graph.compare(a, b);
@@ -76,8 +72,6 @@ export function advanceRanking(input, votes, onDerivation = () => {}) {
     s.merge = { left: [...left], right: [...right], i: 0, j: 0, output: [], target };
     s.phase = 'merge';
   }
-  // Every pass consumes a known relation or changes phase. Unknown relations
-  // return immediately, with all cursors and the pending pair serialized in s.
   for (;;) {
     if (s.phase === 'initial-left' || s.phase === 'initial-right') {
       const side = s.phase === 'initial-left' ? 'left' : 'right', [a, b] = s.initial[side];

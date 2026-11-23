@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Expose the authenticated remote Figma MCP as a filtered local stdio server."""
 
 import json
 import os
@@ -23,18 +22,10 @@ ALLOWED_TOOLS = {
     for name in os.environ.get("FIGMA_MCP_ALLOWED_TOOLS", "").split(",")
     if name.strip()
 }
-# 「对话修改」专用：把模型的每段 use_figma 脚本强制钉在指定页面上（不设这个变量时完全不生效）。
-# 2026-09-21 真实事故：平台刚把「工作页」插到首位，模型的会话紧接着开始，Figma 侧页面顺序还没同步，
-# use_figma 默认落在了旧首页（原稿）——模型全程只用 figma.currentPage、完全守规矩，却把原稿整页改了色。
-# 所以不能依赖"默认落在哪页"：脚本执行前先按名字切到工作页，找不到就抛错（宁可这次调用失败，也不改错页）。
 PIN_PAGE = os.environ.get("FIGMA_MCP_PIN_PAGE", "").strip()
 PIN_PAGE_ID = os.environ.get("FIGMA_MCP_PIN_PAGE_ID", "").strip()
 AWAIT_ASYNC_IIFE = os.environ.get("FIGMA_MCP_AWAIT_ASYNC_IIFE", "") == "1"
 ERROR_GUIDANCE = os.environ.get("FIGMA_MCP_ERROR_GUIDANCE", "") == 'figma-api-guidance/v1'
-# 单次远端调用的总时限（秒）。2026-11-01 起 Figma 远端 get_screenshot 间歇性"不返回也不报错"：
-# httpx 的 120s 是读空闲超时，被流式心跳续命，不会触发；Claude Code 要等 1800s 才中止，
-# 直连模式（GPT）则一直等到整题超时。10case 28 条超时里 27 条是这个原因。
-# 实测 1 万多次成功调用最长 15s，120s 足够宽；卡死时尽快把错误交给模型，让它重试或换方式。
 CALL_TIMEOUT = float(os.environ.get("FIGMA_MCP_CALL_TIMEOUT", "120"))
 
 
@@ -88,8 +79,6 @@ async def with_figma(action):
                 await _pooled_session.initialize()
                 return await action(_pooled_session)
             except FigmaNetworkError as error:
-                # A safe failure means the request was not sent, or the action
-                # is read-only. Never replay an ambiguous use_figma write.
                 if not error.safe_to_retry:
                     raise
                 await _pooled_session.close()
@@ -138,8 +127,6 @@ async def call_tool(name, arguments):
             hint = "；use_figma 的修改可能已生效也可能没有，重试前请先读取当前状态" if name == "use_figma" else "，可以直接重试"
             raise RuntimeError(f"Figma 远端 {name} 在 {CALL_TIMEOUT:.0f} 秒内没有响应，本次调用已中止{hint}") from None
         raise
-    # One logical tool call makes one remote request. Resource recovery belongs
-    # to the account scheduler, not an invisible per-call retry loop.
     record_result(name, result, request)
     if ERROR_GUIDANCE:
         from figma_error_guidance import with_error_guidance

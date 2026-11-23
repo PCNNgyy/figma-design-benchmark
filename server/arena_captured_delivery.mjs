@@ -5,8 +5,6 @@ import {createHash} from 'node:crypto';
 export const CAPTURED_DELIVERY_KIND='distributed-captured-review/v1';
 export const capturedHash=value=>createHash('sha256').update(typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value)).digest('hex');
 
-// These candidates have native screenshot receipts. Screen-count failures and
-// missing automatic judge scores remain visible evidence, not exclusion rules.
 export function validateCapturedCandidate(snapshot,c){
  const source=snapshot.captured_delivery;
  if(source?.kind!==CAPTURED_DELIVERY_KIND||!/^[a-f0-9]{64}$/.test(source.manifest_sha256)
@@ -32,8 +30,6 @@ export function validateCapturedManifest(snapshot,directory){
     ||row.frames.length!==c.images.length||row.frames.some((f,i)=>f.sha256!==c.images[i].sha256||f.node_id!==c.images[i].node_id))throw Error('Captured review candidate changed');
  }
  const groups=Map.groupBy(snapshot.candidates,c=>c.case_id);
- // Older manifests predate an explicit task count and contain thirteen tasks.
- // New cohorts bind their declared size in both immutable envelopes.
  const taskCount=snapshot.captured_delivery.task_count??13;
  if(!Number.isInteger(taskCount)||taskCount<1||groups.size!==taskCount
    ||(snapshot.captured_delivery.task_count!==undefined&&manifest.task_count!==taskCount))throw Error('Captured review task count differs');

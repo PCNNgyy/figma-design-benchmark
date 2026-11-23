@@ -1,8 +1,3 @@
-// 固定型评测（G0 门槛 + Q1~Q20 × 0/1/2 = 40 分）。钉住的关键点：
-// 1. G0 不通过 → 总分直接 0（稿子打不开时后面 20 题的分没有意义）；
-// 2. Q17~Q20 看截图判不了，必须靠图层树摘要——16 万字符的 XML 不能整份塞进提示词；
-// 3. 人工改分要记下改了哪几题，那正是「CC 在哪不准」的证据；
-// 4. 模型漏题、给出界外分值、返回坏 JSON 都不能让整条评估崩掉。
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -35,7 +30,6 @@ test("G0 不通过 → 总分直接 0，哪怕 20 题全给满分", () => {
   assert.equal(fixed20Total(allTwo, false), 0);
   const half = Object.fromEntries(FIXED20_QUESTIONS.map((q) => [q.key, 1]));
   assert.equal(fixed20Total(half, true), 20);
-  // 界外值夹紧，缺题按 0
   assert.equal(fixed20Total({ Q1: 5, Q2: -1, Q3: "二" }, true), 2);
 });
 
@@ -62,7 +56,6 @@ test("解析：夹紧到 0/1/2、漏题补 0 并标出来、坏 JSON 不抛", ()
   const broken = parseFixed20Result(null);
   assert.equal(broken.g0_pass, false);
   assert.match(broken.parse_error, /没有返回可解析的 JSON/);
-  // G0 没给时按通过处理——真塌了的稿子模型会明说
   assert.equal(parseFixed20Result({ scores: [] }).g0_pass, true);
 });
 
@@ -91,12 +84,10 @@ test("图层树摘要：压掉正文只留结构，Q17~Q20 靠它判断", () => 
   assert.equal(second.images, 1);
   assert.equal(second.texts, 0, "整页图片的画板文本数为 0——Q17 的判据");
 
-  // 渲染出来的块要带「怎么用」的说明，否则模型不知道拿这些数字干什么
   const block = renderLayerBlock(summary);
   assert.match(block, /P1 客户列表/);
   assert.match(block, /组件实例/);
   assert.match(block, /Q17/);
-  // 拿不到图层树时要明确让模型标为无法判定，而不是拿截图硬猜
   assert.match(renderLayerBlock(null), /无法判定/);
   assert.equal(summarizeLayerTree(""), null);
 });
@@ -134,10 +125,8 @@ test("人工改分：人工值优先，并记下改了哪几题", () => {
   assert.equal(merged.values.Q3, 2, "人工值覆盖 CC");
   assert.equal(merged.values.Q9, 0);
   assert.deepEqual(merged.changed.sort(), ["Q3", "Q9"], "Q7 人工填了同样的值，不算改动");
-  // 40 满分 − Q7 保持 1（−1）− Q9 改成 0（−2）= 37；Q3 被修正回 2 不扣
   assert.equal(fixed20Total(merged.values, true), 37);
 
-  // 没有人工值时原样返回 CC 的分
   const untouched = mergeHumanValues(cc, {});
   assert.deepEqual(untouched.changed, []);
   assert.equal(fixed20Total(untouched.values, true), fixed20Total(cc, true));
@@ -148,14 +137,11 @@ test("改分理由只留给确实改了的题，改回原值就该清掉", () =>
     { Q3: "  CC 把空状态当成缺页了  ", Q7: "误点的", Q9: "", Q99: "不存在的题" },
     ["Q3", "Q9"]
   );
-  // Q7 不在 changed 里（用户改回了 CC 原值）、Q9 是空字符串、Q99 不是有效题号
   assert.deepEqual(notes, { Q3: "CC 把空状态当成缺页了" });
   assert.deepEqual(normalizeChangeNotes({}, ["Q1"]), {});
   assert.equal(normalizeChangeNotes({ Q1: "x".repeat(500) }, ["Q1"]).Q1.length, 300);
 });
 
-// CC 没评（cc_values 为空）时人直接打的 20 题要全部记进 changed_keys：
-// 列表上才显示得出「改 20」，否则一条纯人工分和 CC 分看起来一样（2026-08-26 用户发现）
 test("mergeHumanValues：CC 为空时人打过的每一题都算改动", () => {
   const human = Object.fromEntries(FIXED20_QUESTIONS.map((q) => [q.key, 1]));
   const merged = mergeHumanValues({}, human, FIXED20_QUESTIONS);

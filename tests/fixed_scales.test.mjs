@@ -1,8 +1,3 @@
-// 多量表注册表（fixed20 / fixed_v3pool / fixed_v2）。钉住的关键点：
-// 1. fixed20 的题目与默认提示词必须与 fixed20_scale.mjs 的常量**同一引用**——v1 一字不改是历史分可比的前提；
-// 2. 题池的提示词要把每题的 2/1/0 标准印出来、只给 layer_only 的题加「看图层」后缀、题数约束写对；
-// 3. 打分/解析/合并这些纯函数对非 Q 开头的题号（A1/D7/G5）同样成立——v2 的题号不会是 Q1..Qn；
-// 4. enabled=false 的量表不注册，experimental 的默认列表里看不到（工作台别把题池摆给评测人）。
 import assert from "node:assert/strict";
 import test from "node:test";
 import crypto from "node:crypto";
@@ -24,7 +19,6 @@ test("注册表：键唯一、满分 = 各题满分之和、默认模板占位�
     const keys = def.questions.map((question) => question.key);
     assert.equal(new Set(keys).size, keys.length, `${def.key} 题号重复`);
     assert.ok(!keys.includes(def.gate.key), `${def.key} 把 G0 混进了计分题`);
-    // 每题满分可不同（v4 的 0-3 题），总满分 = 各题满分之和；全 0-2 的量表仍等于题数 × 2
     assert.equal(def.max, def.questions.reduce((sum, question) => sum + (question.max ?? 2), 0));
     for (const blank of REQUIRED_FIXED20_BLANKS) assert.ok(def.prompt_template.includes(blank), `${def.key} 缺 ${blank}`);
     assert.ok(Object.isFrozen(def));
@@ -38,7 +32,6 @@ test("fixed20 条目原样引用 v1 常量：题目同一引用、模板恒等�
   assert.equal(def.prompt_template, DEFAULT_FIXED20_PROMPT);
   assert.equal(def.max, 40);
   assert.deepEqual(LAYER_ONLY_KEYS, ["Q17", "Q18", "Q19", "Q20"]);
-  // 旧模板没有印 2/1/0 标准，渲染出来的题目清单也不能多出「2 =」行（v1 提示词不能变）
   assert.ok(!/\n\s+2 = /.test(renderQuestionBlock(FIXED20_QUESTIONS)));
   const shape = publicScaleMethod(def);
   assert.deepEqual(Object.keys(shape).sort(), ["description", "has_layer", "key", "max", "name", "question_count", "short", "status"].sort());
@@ -95,7 +88,6 @@ test("非 Q 题号：total / parse / merge / config 对 A1、D7、G5 同样成�
   const merged = mergeHumanValues({ A1: 2, D7: 2, G5: 2 }, { A1: 0, G5: 1 }, questions);
   assert.deepEqual(merged.changed, ["A1", "G5"]);
   assert.equal(merged.values.D7, 2);
-  // 传了量表定义时，默认模板与 method 跟着它走
   const pool = getScaleMethod("fixed_v3pool");
   const config = normalizeFixed20Config({}, pool);
   assert.equal(config.method, "fixed_v3pool");
@@ -109,7 +101,6 @@ test("renderLayerBlock 的题号与提示可换：题池不该在图层段落里
   const block = renderLayerBlock(summary, { hints: ["- 自定义提示 G5"] });
   assert.match(block, /自定义提示 G5/);
   assert.ok(!block.includes("Q17"));
-  // 不传参数时还是 v1 的那四条
   assert.match(renderLayerBlock(summary), /Q17 该给 0/);
 });
 
@@ -121,8 +112,6 @@ test("experimental 的默认列表里看不到；未知量表为 null", () => {
   assert.ok(listScaleMethods({ all: true }).map((def) => def.key).includes("fixed_v3pool"));
 });
 
-// v2 = 题池砍出来的 20 题：满分 40 与 v1 对齐（图表同一刻度），题号沿用题池键以便对照，
-// 天花板/地板题（G1/G2/G5/G6、A3/A4/A6、B2/B3、C1、D2/D3/D6/D9、E1/E2、F1/F5）不能再混回来
 test("fixed_v2：20 题 40 分、stable、每题带标准与层级、题池键可对照、天花板题不回流", () => {
   const def = getScaleMethod("fixed_v2");
   assert.ok(def, "v2 已定稿，必须注册");
@@ -147,8 +136,6 @@ test("fixed_v2：20 题 40 分、stable、每题带标准与层级、题池键�
   assert.ok(listScaleMethods().map((entry) => entry.key).includes("fixed_v2"), "v2 是 stable，工作台默认可选");
 });
 
-// 2026-09-15 引擎改成「每题各自满分」（v4 的 0-3 题）。这组指纹是改之前记下的：
-// 已有量表的默认模板、题目清单、渲染出的完整提示词都不能变——跨批次可比的前提。
 test("混合分值改造不动已有量表：v1/v2/题池/v3-9.8 的提示词与改前指纹一致", () => {
   const fingerprint = (text) => crypto.createHash("sha256").update(text).digest("hex").slice(0, 16);
   const expected = {

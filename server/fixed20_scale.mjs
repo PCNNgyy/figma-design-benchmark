@@ -1,20 +1,8 @@
-// 固定型评测：G0 前置门槛 + Q1~Q20 三档打分（0/1/2），满分 40。
-//
-// 与另外两条链路的分工：
-//   检查点（45 条 0/1）—— 任务型 25 条按 query 现生成，每份稿子的题不一样，跨模型不可直接比；
-//   N7 雷达（七域 0-10）—— 主观程度分，看趋势好用，当验收标准太软；
-//   固定型评测（本模块）—— **所有稿子共用同一份 20 题**，所以跨模型、跨数据集横向可比，
-//                          适合当模型选型的主指标。
-//
-// ⚠ Q17~Q20（可编辑性 / 图层结构 / 布局结构 / 复用结构）**看截图判断不了**：
-// 「是否保留为可独立编辑的图层」「是否用组件实例而非大量复制层」只有读 Figma 图层树才知道。
-// 所以提示词里除了截图，还必须带图层树摘要（summarizeLayerTree），否则最后四题是瞎猜。
 
 export const FIXED20_METHOD = "fixed20";
 export const FIXED20_NAME = "固定型评测";
 export const FIXED20_MAX = 40;
 
-// 题干原文照抄需求，不要改写——这是跨批次可比的前提
 export const GATE_QUESTION = {
   key: "G0",
   dimension: "前置门槛",
@@ -44,11 +32,8 @@ export const FIXED20_QUESTIONS = [
   { key: "Q20", dimension: "复用结构", layer_only: true, text: "重复出现且功能相同的控件、卡片、导航或样式，是否采用统一组件、实例或共用样式，而不是大量断开的复制层？" }
 ];
 
-// 只看截图判不了的题：提示词里要点名让模型改用图层结构作依据。
-// 现在按题上的 layer_only 标记派生——别的量表（fixed_scales/）也靠这个标记，不再写死题号。
 export const LAYER_ONLY_KEYS = FIXED20_QUESTIONS.filter((question) => question.layer_only).map((question) => question.key);
 
-// 图层摘要下面「怎么用这份摘要」的四条：题号是 fixed20 的，别的量表传自己的一份进来
 export const FIXED20_LAYER_HINTS = [
   "- 文本数接近 0 而图片数很大 → 很可能整页被拍成了图片（Q17 该给 0）；",
   "- 图层命名全是 Rectangle / Frame / Group 这类默认名 → 命名与功能区域不符（Q18 扣分）；",
@@ -152,9 +137,6 @@ export const DEFAULT_FIXED20_PROMPT = [
   ...PROMPT_TAIL
 ].join("\n");
 
-// 题目清单一行一题；带 layer_only 的点名看图层树；带 standards（2/1/0 判定标准）的把标准印在题下——
-// 没有标准的题模型会退回「没毛病就给 2」，这正是 v1 六道天花板题的来源
-// 每题满分：题目定义不写 max 的都是 0-2；v4 起信息组织、布局质量每题 0-3（2026-09-15）
 export function questionMax(question) {
   const value = Number(question?.max);
   return Number.isInteger(value) && value > 0 ? value : 2;
@@ -165,7 +147,6 @@ export function renderQuestionBlock(questions = FIXED20_QUESTIONS) {
     .map((question) => {
       const tail = question.layer_only ? "（依据图层结构判断，不要只看截图）" : "";
       const scope = question.scope ? `［重点看：${question.scope}］` : "";
-      // 非 0-2 的题在题干后标出分值范围；0-2 的题不标（已有量表的提示词因此一字不变）
       const range = questionMax(question) !== 2 ? `（0-${questionMax(question)} 分）` : "";
       const lines = [`${question.key} ｜ ${question.dimension}：${question.text}${range}${scope}${tail}`];
       const standards = question.standards || null;
@@ -174,14 +155,12 @@ export function renderQuestionBlock(questions = FIXED20_QUESTIONS) {
           if (standards[level]) lines.push(`    ${level} = ${standards[level]}`);
         });
       }
-      // 反例帮助判官对齐"这题到底在看什么"（v3-9.8 的 bad case 列）
       if (question.example) lines.push(`    反例：${question.example}`);
       return lines.join("\n");
     })
     .join("\n");
 }
 
-// method 传量表定义（fixed_scales/ 里的一项）时，默认模板与 method 键都跟着它走；不传就是 fixed20
 export function normalizeFixed20Config(input = {}, method = null) {
   const template = String(input.prompt_template || "").trim()
     || String(method?.prompt_template || "").trim()
@@ -197,9 +176,6 @@ export function normalizeFixed20Config(input = {}, method = null) {
   };
 }
 
-// 把 16 万字符的图层树压成模型吃得下的摘要。整份塞进提示词会直接顶穿上下文，
-// 而 Q17~Q20 真正需要的只是「结构长什么样」：每个画板下有多少节点、嵌套多深、
-// 命名是不是有意义、有没有用组件实例、文字是不是被拍成了图片。
 export function summarizeLayerTree(xml, { maxFrames = 24, nameSamples = 6 } = {}) {
   const source = String(xml || "");
   if (!source.includes("<")) return null;
@@ -314,11 +290,6 @@ export function buildFixed20Prompt(template, {
     .replaceAll("【Query】", String(query || "").trim());
 }
 
-// 给别的量表生成默认提示词：骨架与 fixed20 同款（先看图、G0 门槛、三档纪律、JSON 输出），
-// 题数/题号/图层段落按定义算出来。fixed20 自己的 DEFAULT_FIXED20_PROMPT 不走这里——
-// 那份模板一字不改是跨批次可比的前提。
-//   intro：加在「三档打分」之后的额外纪律（比如题池要求的「先盘点再打分」）；
-//   scaleNote：覆盖默认的 2/1/0 通用口径（题池把 2 分抬到「成熟产品水准」就靠它）。
 export function buildDefaultScalePrompt({
   name = "固定量表", gate = GATE_QUESTION, questions = [], layerLabel = "", intro = [], scaleNote = null
 } = {}) {
@@ -327,7 +298,6 @@ export function buildDefaultScalePrompt({
   const last = questions[count - 1]?.key || first;
   const layerKeys = questions.filter((question) => question.layer_only).map((question) => question.key);
   const layerText = layerLabel || (layerKeys.length ? layerKeys.join("、") : "");
-  // 有非 0-2 的题（v4 的 0-3）才换分值文案；全是 0-2 的量表提示词保持原样
   const mixed = questions.some((question) => questionMax(question) !== 2);
   const note = scaleNote || [
     "  2 = 完全成立。目标用户不会在这一项上遇到困难，挑不出实质问题。",
@@ -454,7 +424,6 @@ export function parseFixed20Result(parsed, questions = FIXED20_QUESTIONS) {
     values[question.key] = score ?? 0;
     evidence[question.key] = clean(raw?.evidence, 400);
   });
-  // G0 只认明确的 false；没给就按通过处理（真塌了的稿子模型会明说）
   const gate = parsed.g0 && typeof parsed.g0 === "object" ? parsed.g0 : {};
   const g0Pass = gate.pass === false ? false : true;
   return {
@@ -467,7 +436,6 @@ export function parseFixed20Result(parsed, questions = FIXED20_QUESTIONS) {
   };
 }
 
-// G0 不过直接 0 分：稿子打不开或缺核心页时，后面 20 题的分没有意义
 export function fixed20Total(values, g0Pass, questions = FIXED20_QUESTIONS) {
   if (!g0Pass) return 0;
   return questions.reduce((sum, question) => {
@@ -476,8 +444,6 @@ export function fixed20Total(values, g0Pass, questions = FIXED20_QUESTIONS) {
   }, 0);
 }
 
-// 改分理由只跟着「确实改了的题」走：改回 CC 原值后那条理由就没有意义了，
-// 不清掉的话库里会留一堆指向不存在改动的说明。
 export function normalizeChangeNotes(notes = {}, changedKeys = []) {
   const allowed = new Set(changedKeys);
   const result = {};
@@ -488,7 +454,6 @@ export function normalizeChangeNotes(notes = {}, changedKeys = []) {
   return result;
 }
 
-// 人工值优先；同时记下改了哪几题——那正是「CC 在哪不准」的证据
 export function mergeHumanValues(ccValues = {}, humanValues = {}, questions = FIXED20_QUESTIONS) {
   const values = {};
   const changed = [];

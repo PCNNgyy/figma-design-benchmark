@@ -5,7 +5,6 @@ import {seal,verifySeal} from './benchmark_protocol.mjs';
 
 const digest=s=>createHash('sha256').update(JSON.stringify(s)).digest('hex');
 
-// This is a display history, never new preference evidence or a current rank.
 export function captureCompletedStages(db,snapshot){
  const source_snapshot_hash=digest(snapshot);
  if(db.prepare("SELECT value FROM metadata WHERE key='snapshot_hash'").get()?.value!==source_snapshot_hash)throw Error('Completion history source differs from its snapshot');

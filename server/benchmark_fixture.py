@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Figma fixture inspection, with an optional assigned-copy write check."""
 import argparse
 import asyncio
 import json
@@ -72,10 +71,7 @@ async def inspect(config_file, file_key, artifacts=False, verify_writable=False,
         budget_file = parameters.env.get("FIGMA_MCP_BUDGET_FILE")
         budget = json.loads(Path(budget_file).read_text()) if budget_file and Path(budget_file).exists() else {}
         if budget.get("resource_blocked") or float(budget.get("cooldown_until") or 0) > time.time():
-            # Defer before starting stdio, fetching schemas, or loading OAuth.
             raise InspectionError("FIGMA_QUOTA", "Figma MCP 账号正在冷却或等待额度恢复；模型尚未启动，已返回资源等待队列")
-    # Sources and artifact recovery use read-only metadata. Only a verified
-    # assigned copy may opt into creating/removing a probe in empty Workspace.
     code = (
         "const pages=[];for(const p of figma.root.children){await p.loadAsync();"
         "pages.push({id:p.id,name:p.name,child_count:p.children.length});}"
@@ -130,8 +126,6 @@ async def inspect(config_file, file_key, artifacts=False, verify_writable=False,
             "workspace:w?{id:w.id,name:w.name,children}:null});"
         )
     if workspace_artifacts:
-        # Preserve the same layer-summary fields while loading only 03. The
-        # reference brief is not part of the judge's screenshot/layer input.
         code = code.replace("await p.loadAsync();", "if(/^03\\s*[·.\\-—]/.test(p.name))await p.loadAsync();")
         code = code.replace("pages.push({id:p.id,name:p.name,child_count:p.children.length});",
             "pages.push({id:p.id,name:p.name,...(/^03\\s*[·.\\-—]/.test(p.name)?{child_count:p.children.length}:{})});")
@@ -155,8 +149,6 @@ async def inspect(config_file, file_key, artifacts=False, verify_writable=False,
                     value["reference_read_verified"] = True
                     value["reference_read"] = {"tool": "get_metadata", "node_id": page["id"], "page_name": page["name"]}
             except InspectionError as error:
-                # Raise after the stdio task group closes so it cannot wrap a
-                # definitive quota/permission rejection as a transport failure.
                 failure = error
     if failure:
         raise failure

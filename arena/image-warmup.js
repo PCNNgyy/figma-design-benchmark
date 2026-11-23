@@ -1,7 +1,5 @@
 import {createDecodedImages} from './decoded-images.js';
 import {createBrowserImageCache} from './browser-image-cache.js';
-// Cache displayed originals. Download just the next screen while reading;
-// foreground navigation cancels every old prefetch before loading its images.
 export function createImageWarmup({localPath,api,budget=48*1024*1024}){
   const queue=new Map(),done=new Set(),active=new Map();
   const images=createDecodedImages({localPath,budget:(navigator.deviceMemory&&navigator.deviceMemory<=4?48:96)*1024*1024});
@@ -11,7 +9,6 @@ export function createImageWarmup({localPath,api,budget=48*1024*1024}){
   function schedule(){if(!timer&&!stopped&&!paused)timer=setTimeout(()=>{timer=null;pump();},750);}
   function add(items,priority=0,caseId){
     if(stopped||caseId!==activeCase)return;
-    // Replace the look-ahead window, never append an entire task's model set.
     queue.clear();for(const im of items.slice(0,2))if(im?.media_key&&!done.has(im.url)&&!active.has(im.url))queue.set(im.url,im);
     schedule();
   }
@@ -24,10 +21,10 @@ export function createImageWarmup({localPath,api,budget=48*1024*1024}){
       if(stopped||paused||version!==generation)return;
       const response=await fetch(localPath(item.url),{credentials:'same-origin',cache:'force-cache',priority:'low',signal:controller.signal});
       if(response.ok){
-        const reader=response.body?.getReader();if(reader){while(!(await reader.read()).done){/* only warm the browser HTTP cache */}}else await response.arrayBuffer();
+        const reader=response.body?.getReader();if(reader){while(!(await reader.read()).done){ }}else await response.arrayBuffer();
         if(!stopped&&version===generation){done.add(item.url);spent+=item.bytes||0;}
       }
-    }catch{/* Foreground navigation can cancel this background transfer. */}
+    }catch{ }
     finally{active.delete(item.url);schedule();}
   }
   const visibility=()=>{if(document.hidden)cancel();else schedule();};document.addEventListener('visibilitychange',visibility);

@@ -36,7 +36,6 @@ export function createArenaMedia({db,directory,snapshot,digest,seed,candidates,c
       if(fs.realpathSync(file)!==file||createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==item.im.sha256)reject(409,'冻结截图已变化，请反馈组织者');
       verified.set(file,fingerprint);
     }
-    // A download can be an idle prefetch. It is deliberately NOT a view receipt.
     const receipt=reviewer+':'+token;
     if(!downloads.has(receipt)){
       db.prepare('INSERT OR IGNORE INTO arena_media_downloads VALUES (?,?,?,?)').run(reviewer,token,item.im.sha256,new Date().toISOString());

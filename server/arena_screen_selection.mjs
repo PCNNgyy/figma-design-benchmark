@@ -1,5 +1,3 @@
-// A Workspace can contain both deliverable screens and reusable UI/assets.
-// Frame type alone, and an arbitrary leading number alone, are not enough.
 export const SCREEN_SELECTION_POLICY='task-screen-names/v2';
 export const frameKey=name=>String(name).normalize('NFKC').toLowerCase().replace(/[\s_\-–—·.:/()[\]]+/g,'');
 const numbered=name=>/^\s*\d{2}[_ .·-]+\S/.test(String(name));
@@ -13,9 +11,6 @@ function texts(value){
 export function requiredScreenNames(task){
   const declared=task?.required_frames||[],page=task?.pages?.find(p=>/^00(?:\b|[\s·._-])/.test(p.name||''));
   const literals=[...new Set(texts(page).join('\n').match(/\b\d{2}_[A-Za-z0-9_]+\b/g)||[])];
-  // Some briefs list several state frames in a single text node. The older
-  // section parser missed these. Drop shorthand stems, e.g. 03_Sign_Up when
-  // 03_Sign_Up_Empty/Filled are explicitly present, not the actual states.
   const extra=literals.filter(name=>!name.endsWith('_')&&!literals.some(other=>other!==name&&other.startsWith(name+'_')));
   const seen=new Set();
   return [...declared,...extra].filter(name=>{
@@ -25,8 +20,6 @@ export function requiredScreenNames(task){
 
 export function isReviewScreenName(name,required=[]){
   if(required.length)return required.some(expected=>frameKey(expected)===frameKey(name));
-  // Only a fallback for a cohort without a task whitelist. Never infer that
-  // every top-level Frame is a screen or silently include library boards.
   return numbered(name)&&!library(name);
 }
 

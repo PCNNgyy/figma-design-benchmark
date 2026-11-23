@@ -128,8 +128,6 @@ export function createArenaStore(directory, snapshot, {openRegistration=false,sh
   const snapshotText = JSON.stringify(snapshot), digest = hash(snapshotText);
   validateArenaSnapshot(snapshot, directory);
   if(incrementalRanking&&snapshot.version!==3)throw Error('Incremental sorting requires a version3 frozen cohort');
-  // Link visibility is a presentation setting. Keep the frozen candidates,
-  // snapshot hash and existing reviewer/vote identities unchanged.
   const reviewMode=showFigmaLinks?'figma-and-screenshots':snapshot.review_mode||'figma-and-screenshots';
   const requirements = readArenaRequirements(directory, snapshot, digest);
   const database = path.join(directory, 'arena.sqlite3');
@@ -156,8 +154,6 @@ export function createArenaStore(directory, snapshot, {openRegistration=false,sh
     if (!fs.existsSync(credentialFile)) { db.close(); throw new Error('Arena access file is missing; restore it rather than replacing reviewer identities'); }
     credentials = JSON.parse(fs.readFileSync(credentialFile));
   } else {
-    // A new immutable round may carry existing access codes, keeping distributed
-    // reviewer links valid. Votes are always held in its own fresh database.
     credentials = fs.existsSync(credentialFile) ? JSON.parse(fs.readFileSync(credentialFile))
       : { admin: token(), seed: token(), reviewers: Array.from({length:plannedReviewers},(_,i)=>({id:`reviewer-${i+1}`,label:`评审 ${i+1}`,access:token()})) };
     if (!credentials.admin || !credentials.seed || credentials.reviewers?.length < plannedReviewers
@@ -184,8 +180,6 @@ export function createArenaStore(directory, snapshot, {openRegistration=false,sh
   }
   let reviewerPolicy;
   try{reviewerPolicy=readArenaReviewers(directory,snapshot,digest,credentials);}catch(e){db.close();throw e;}
-  // New external cohorts use the common entry only. An unused generated legacy
-  // identity must not count as an extra designer in their progress denominator.
   const legacyReviewers=openRegistration&&(snapshot.external_delivery?.kind===DELIVERY_KIND||snapshot.captured_delivery?.kind===CAPTURED_DELIVERY_KIND)?[]:credentials.reviewers.filter(r=>reviewerPolicy.active_reviewers.includes(r.id));
   const accounts=arenaAccounts(db,legacyReviewers,{openRegistration});
   const activeIds=new Set(),activeReviewers=[];
@@ -251,7 +245,6 @@ export function createArenaStore(directory, snapshot, {openRegistration=false,sh
   function queue(reviewerId) {
     const groups = [...Map.groupBy(pairs, (p) => p.case_id)].sort((a, b) => randomOrder(`${reviewerId}:${a[0]}`).localeCompare(randomOrder(`${reviewerId}:${b[0]}`)));
     for (const [, group] of groups) group.sort((a, b) => randomOrder(`${reviewerId}:${a.id}`).localeCompare(randomOrder(`${reviewerId}:${b.id}`)));
-    // Round-robin over tasks: the first session covers different briefs.
     const result = [];
     for (let i = 0; groups.some(([, g]) => g.length > i); i++) for (const [, group] of groups) if (group[i]) result.push(group[i]);
     return result;
@@ -563,7 +556,6 @@ export function createArenaApp(store, { staticDirectory, secureCookies = false, 
       if(!store.figmaLinks)return res.sendStatus(404);
       const {candidate}=store.figmaLinks.resolve(req.params.token);
       let index;if(req.query.screen!==undefined){if(!/^\d+$/.test(String(req.query.screen)))return res.sendStatus(404);index=Number(req.query.screen);}
-      // Opening a source file does not create a view receipt or a preference.
       res.set({'Referrer-Policy':'no-referrer','Cache-Control':'no-store'}).redirect(302,canonicalFigmaUrl(candidate,index));
     }catch{return res.sendStatus(404);}
   });
@@ -718,8 +710,6 @@ export function createArenaApp(store, { staticDirectory, secureCookies = false, 
   if (!basePath) return app;
   const mounted = express();
   mounted.disable('x-powered-by');
-  // Keep the local health probe available while the web/API live below a
-  // gateway prefix. The proxy must preserve Host (including the external port).
   mounted.get('/api/health', (req, res) => res.json({ ok: true, service: 'figma-human-arena', candidates: store.candidates.size, pairs: store.pairs.length }));
   mounted.use((req, res, next) => {
     if (req.path === '/' || req.path === basePath) return res.redirect(308, `${basePath}/`);

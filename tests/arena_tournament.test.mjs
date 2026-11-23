@@ -27,8 +27,6 @@ test('all24 strict four-model orderings are recovered with exactly5 real compari
   for(const ranking of permutations(['a','b','c','d'])){const decisions=[],rank=id=>ranking.indexOf(id);let s=tournamentState(['a','b','c','d'],decisions);
     for(let i=0;i<5;i++){assert.equal(s.complete,false);decisions.push(s.pair.toSorted((a,b)=>rank(a)-rank(b))[0]);s=tournamentState(['a','b','c','d'],decisions);}
     assert.equal(s.complete,true);assert.deepEqual(s.ordering,ranking);assert.equal(s.battles.length,5);
-    // The middle battle can repeat an initial matchup. It is still a real
-    // fifth decision in the official bracket, never a synthetic sixth vote.
     assert.ok([4,5].includes(new Set(s.battles.map(p=>p.toSorted().join(':'))).size));
   }
   assert.throws(()=>tournamentState(['a','b','c','d'],['c']),/does not belong/);

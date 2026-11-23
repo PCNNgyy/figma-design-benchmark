@@ -2,8 +2,6 @@ import {createHash} from 'node:crypto';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const rate=(n,d)=>d?n/d:null;
 
-// Read actual, still-effective overall ballots. No screen votes, derivations,
-// inferred orders, unobserved pairs, disabled accounts or superseded votes.
 export function observedHumanComparisons(store){
   const excluded={unable:0,invalid:0,version_mismatch:0};
   const provenance=store.incremental?new Map(store.db.prepare(`SELECT v.ballot_id,v.pair_id,v.a,v.b,v.winner,v.outcome,v.active,

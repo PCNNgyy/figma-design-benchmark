@@ -1,5 +1,3 @@
-// 固定型评测 v1（fixed20）：把 fixed20_scale.mjs 里的常量原样包成量表定义。
-// 题目、满分、默认提示词都直接引用那边的常量——这一版一字不改是历史分数跨批次可比的前提。
 import {
   DEFAULT_FIXED20_PROMPT, FIXED20_LAYER_HINTS, FIXED20_MAX, FIXED20_METHOD, FIXED20_NAME,
   FIXED20_QUESTIONS, GATE_QUESTION

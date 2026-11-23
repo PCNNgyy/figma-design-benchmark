@@ -6,9 +6,6 @@ import { fingerprint } from "./benchmark_protocol.mjs";
 
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 
-// Capture request bodies before forwarding. TAP may omit an exchange that
-// never receives a complete response. These files prove only the input bytes;
-// they never stand in for an assistant response or a completed dialogue turn.
 export function captureWireRequest(runDir, source, forwarded, requestPath, profileHash) {
   const value = { kind: "benchmark-wire-request/v1", method: "POST", path: requestPath,
     profile_hash: profileHash, source, forwarded };

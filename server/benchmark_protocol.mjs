@@ -142,8 +142,6 @@ export function verifyExecution(manifest) {
   }
   return manifest;
 }
-// Tests and the initial execution remain immutable. Each fresh retry is a new
-// run on the same logical test; its only query change is the runtime copy URL.
 export function runAssignmentItem(item, modelId, run, retries = [], retained = []) {
   if (!run) return item;
   const target = run.base_figma_url || run.figma_url || item.figma_url;

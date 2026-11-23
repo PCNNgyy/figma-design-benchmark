@@ -1,25 +1,9 @@
-// 固定型评测 v3 题池（实验用）：团队 2026-09-03 会议后的 v3 题库 41 题原文 + 2 题新增（N1/N3），
-// 每题补齐 2/1/0 判定标准。**这不是最终量表**——它是题项分析的输入：
-// 在 4 case × 3 模型（Opus 5 / Fable 5 / Fable 5.1）上跑一遍，按每题的天花板率、题间相关、
-// 三模型极差决定 fixed_v2 留哪些题。所以这里宁多勿少，重复项也照收（正是要量它们重不重复）。
-//
-// 字段约定：
-//   dimension    v3 的一级维度（用户体验 / 信息组织 / 风险识别 / 布局质量 / 一致性 / 视觉表达质量 / 完成度 / Figma结构）
-//   layer        原子设计层级（原子 / 分子 / 组织 / 模块 / 页面 / 结构）——雷达可按它另一种口径聚合
-//   perspective  使用者视角 / 设计师视角（白板上的"上面设计师、下面用户"）
-//   scope        v3 的「重点查看范围」，印在题干后面
-//   standards    2/1/0 判定标准；v3 已写的 6 题照抄，其余按同一口径补
-//   layer_only   G 组：看截图判不了，靠图层树摘要
-//
-// 实证提醒（2026-09-03 查过现有批次 28 条 run 的图层树）：instance/component 节点全部为 0，
-// XML 只有 id/name/x/y/width/height 六个属性——G5 预期全 0，G6 没有证据源。留在题池里是为了让数据说话。
 import { GATE_QUESTION, buildDefaultScalePrompt } from "../fixed20_scale.mjs";
 
 const USER = "使用者视角";
 const DESIGNER = "设计师视角";
 
 const questions = [
-  // ---------- A 用户体验（使用者视角） ----------
   {
     key: "A1", dimension: "用户体验", layer: "页面", perspective: USER,
     text: "仅凭标题、内容和标签，能否理解页面是做什么的？",
@@ -81,7 +65,6 @@ const questions = [
     }
   },
 
-  // ---------- B 信息组织（设计师视角） ----------
   {
     key: "B1", dimension: "信息组织", layer: "模块", perspective: DESIGNER,
     text: "属于同一任务、对象或类别的信息是否集中在同一组？",
@@ -113,7 +96,6 @@ const questions = [
     }
   },
 
-  // ---------- C 风险识别 ----------
   {
     key: "C1", dimension: "风险识别", layer: "分子", perspective: DESIGNER,
     text: "重要状态、类别或操作含义是否不只依靠颜色表达？",
@@ -135,7 +117,6 @@ const questions = [
     }
   },
 
-  // ---------- D 布局质量：按分子 / 组织 / 模块三层 ----------
   {
     key: "D1", dimension: "布局质量", layer: "分子", perspective: DESIGNER,
     text: "分子内部各元素是否按照合适的边缘、中心线或文字基线对齐？",
@@ -237,7 +218,6 @@ const questions = [
     }
   },
 
-  // ---------- E 一致性 ----------
   {
     key: "E1", dimension: "一致性", layer: "原子", perspective: DESIGNER,
     text: "使用方面，相同语义或层级的文本，是否统一使用相同的字号、字重、行高和颜色？",
@@ -309,7 +289,6 @@ const questions = [
     }
   },
 
-  // ---------- F 视觉表达质量 ----------
   {
     key: "F1", dimension: "视觉表达质量", layer: "原子", perspective: DESIGNER,
     text: "文本层级的设置方面，是否合理、清晰不混乱？",
@@ -371,7 +350,6 @@ const questions = [
     }
   },
 
-  // ---------- N 完成度（新增：v3 没有覆盖、但正是拉开 Fable 5.1 的项） ----------
   {
     key: "N1", dimension: "完成度", layer: "组织", perspective: DESIGNER,
     text: "组件是否带有真实产品应有的要素与可信内容，而不是占位、重复或空洞的填充？",
@@ -393,7 +371,6 @@ const questions = [
     }
   },
 
-  // ---------- G Figma 结构（看图层树） ----------
   {
     key: "G1", dimension: "Figma结构", layer: "结构", perspective: DESIGNER, layer_only: true,
     text: "关键文字、图形、图标和控件是否保留为可以独立选择和编辑的文本层？",
@@ -482,7 +459,6 @@ export default {
     gate: GATE_QUESTION,
     questions,
     layerLabel,
-    // 2 分的门槛抬到「成熟产品水准」：v1 的「没毛病就给 2」让六道题成了天花板
     scaleNote: [
       "  2 = 达到成熟产品水准。放进主流产品里不违和，挑不出说得出位置的问题；不是「没毛病」，是「像真产品」。",
       "  1 = 基本成立，但能指出具体位置的瑕疵（第 N 屏 / 哪个区域 / 什么现象）；不影响用，但看得出没打磨。",

@@ -4,8 +4,6 @@ const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex
 const identity=c=>JSON.stringify([c.case_id,c.model_id]);
 const model=c=>({model_id:c.model_id,candidate_id:c.id,version:hash([c.id,c.run_id,c.workspace_id,c.images.map(i=>i.sha256)])});
 
-// Operate only on an offline SQLite clone. The complete source DB and frozen
-// files remain the history of superseded images, annotations and preferences.
 export function migrateCandidateRevisions({db,previous,snapshot,archiveDirectory,expectedReplacements}){
  const oldDigest=hash(previous),digest=hash(snapshot),oldBy=new Map(previous.candidates.map(c=>[identity(c),c])),by=new Map(snapshot.candidates.map(c=>[identity(c),c]));
  if(oldBy.size!==by.size||[...oldBy.keys()].some(k=>!by.has(k)))throw Error('Revision must preserve the case/model matrix');
@@ -24,8 +22,6 @@ export function migrateCandidateRevisions({db,previous,snapshot,archiveDirectory
   for(const pair of oldPairs){
    report.archived_overall_votes+=db.prepare('SELECT COUNT(*) n FROM ballots WHERE pair_id=?').get(pair.id).n;
    report.archived_screen_votes+=db.prepare('SELECT COUNT(*) n FROM pair_screen_votes WHERE pair_id=?').get(pair.id).n;
-   // Older cohorts retain tournament history from before incremental ranking.
-   // Its replaced-output links live in the source archive with the old pairs.
    if(legacyBattles)report.archived_legacy_battles+=db.prepare('DELETE FROM tournament_battles WHERE pair_id=?').run(pair.id).changes;
    for(const table of ['views','pair_screen_image_views','pair_screen_votes','pair_screen_plans','incremental_sort_votes','incremental_sort_requests','ballots','pairs']){
     db.prepare(`DELETE FROM ${table} WHERE ${table==='pairs'?'id':'pair_id'}=?`).run(pair.id);
@@ -49,8 +45,6 @@ export function migrateCandidateRevisions({db,previous,snapshot,archiveDirectory
     if(!next.status.startsWith('paused-')&&unable.length){next.status='paused-unable';next.pending=null;next.issue={vote_ids:unable.map(v=>v.id)};}
     state=JSON.stringify(next);
     if(review&&!db.prepare('SELECT 1 FROM incremental_sort_requests WHERE id=?').get(review))review=null;
-    // A pending comparison between unchanged originals can keep its partial
-    // per-screen work if replay reaches the same pair at this revision.
     for(const request of db.prepare("SELECT * FROM incremental_sort_requests WHERE session_id=? AND revision=? AND purpose='sort'").all(row.id,row.revision)){
      if(db.prepare('SELECT 1 FROM ballots WHERE pair_id=? AND reviewer_id=?').get(request.pair_id,row.reviewer_id))continue;
      const ids=next.pending?[next.pending.a,next.pending.b].sort():[];

@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
 
-// TrueSkill's closed-form, two-player, decisive-result update. No draws or drift.
-// https://trueskill.org/ (mu=25, sigma=25/3, beta=25/6, tau=0).
 export const RATING = Object.freeze({ mu: 25, sigma: 25 / 3, beta: 25 / 6, tau: 0, draw_probability: 0 });
 const pdf = (x) => Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
-// erfc approximation from Numerical Recipes; sufficient to < 2e-6 rating points.
 function erfc(x) {
   const z = Math.abs(x), t = 1 / (1 + z / 2);
   const p = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (.37409196 + t * (.09678418
@@ -15,7 +12,6 @@ function erfc(x) {
 export function rateWin(winner, loser) {
   const c2 = winner.sigma ** 2 + loser.sigma ** 2 + 2 * RATING.beta ** 2;
   const c = Math.sqrt(c2), t = (winner.mu - loser.mu) / c;
-  // Asymptotic inverse Mills ratio avoids underflow for a very unlikely upset.
   const a = -t;
   const v = t < -10 ? a + 1 / a - 2 / a ** 3 + 10 / a ** 5 - 74 / a ** 7
     : pdf(t) / (.5 * erfc(-t / Math.SQRT2));

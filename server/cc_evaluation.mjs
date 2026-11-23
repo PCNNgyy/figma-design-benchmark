@@ -1,39 +1,10 @@
-// 尼尔森七域雷达评估（N7 雷达）：让模型看着截图按七个域打分，人再逐域校准。
-//
-// ⚠ 七域**不是**尼尔森原版十大可用性原则，是在它基础上重组的：
-//   可理解性 = 意图匹配 / 任务完整 / 结构清晰；可控性 = 反馈明确；
-//   可恢复性 = 控制容错；流畅性 = 一致高效 / 形式体验。
-// 对外介绍时要说清这一点，别让人当成标准原版。
-//
-// 为什么要有这条链路：现有 100 条检查点的生成提示词（criteria_prompt.mjs）全程只读
-// query 文本、**从不看图**，所以「功能齐 = 高分」——实测一份 72 分的稿子肉眼看仍然难看，
-// 而 100 条里没有一条能抓到这件事。这里是互补的第二条链路，只评观感成不成立。
-//
-// 设计要点：
-// 1. 加权总分由**服务端**算，模型只给各域原始分。日后要能换权重重算历史样本，
-//    这正是「筛出哪些域真有区分度」的核心动作。
-// 2. 两版提示词共用同一个解析器，靠 prompt_variant 分组做 A/B。
-// 3. 所有出接口的字符串都过 scrubPaths：提示词里必须给绝对路径（Read 才打得开），
-//    模型很容易顺手把路径写进 evidence。
 
-// 与 figma_frames.MAX_FRAMES 对齐：补图能补 24 张，这里只看 8 张的话，
-// 补回来的画板会被白白截掉（实测补了 11 屏、评估只读了 8 屏）。
-// 代价是屏数越多越慢：实测 8 屏 105s、11 屏 423s。
 export const MAX_EVAL_IMAGES = 24;
 export const EVAL_TIMEOUT_MS = 900000;
 export const VERDICT_THRESHOLDS = { good: 75, fair: 55 };
 export const REQUIRED_EVAL_BLANKS = ["【Query】", "【截图清单】", "【领域清单】"];
 export const CRITERIA_BLANK = "【已有检查点得分】";
 
-// 权重取舍（改之前先读这段）：
-// - structure + form = 0.40：「肉眼难看」几乎全部落在这两域，而它们恰恰是 100 条
-//   功能检查点结构性看不见的东西（检查点问「有没有筛选入口」，从不问「金额扫不扫得到」）。
-// - task/intent 只给 0.10/0.15：与现有检查点高度重叠，给高权重等于同一件事算两遍，
-//   总分又会退回「功能齐即高分」。保留是为了日后算相关性——若与人工 100 分几乎同步，
-//   说明它冗余，可以删。
-// - feedback/control 最低：静态稿上只能看到「入口是否存在」，看不到真实态迁移，
-//   模型在这两域最容易空谈。仍然打分，因为「静态稿到底评不评得动这两域」本身就是
-//   要用逐域「准/不准」标注回答的问题。
 export const DEFAULT_EVAL_DOMAINS = [
   { key: "intent", name: "意图匹配", parent: "可理解性", question: "是否理解用户目标和场景", weight: 0.15, max: 10 },
   { key: "task", name: "任务完整", parent: "可理解性", question: "功能和流程是否闭环", weight: 0.10, max: 10 },
@@ -156,15 +127,11 @@ const PROMPT_OUTPUT_TAIL = [
   "【设计任务 Query】",
   "【Query】",
   "",
-  // ⚠ 这一行是**小标题**，不能再写成【截图清单】——renderEvalPrompt 用的是 replaceAll，
-  // 两行同名占位符会把整份清单渲染两遍（实测提示词里出现了两次「本次生成共 N 屏」）。
   "【本次生成的截图】",
   "【截图清单】",
   CRITERIA_BLANK
 ];
 
-// v2 的差别：打分前先锚定第一印象。人判断「难看」走的就是这条路径，
-// 用它和 v1 做 A/B，看哪版更贴合人工确认。
 const PROMPT_FIRST_IMPRESSION = [
   "",
   "=========================================",
@@ -226,12 +193,8 @@ export function clampScore(value, max = 10) {
   return Math.min(max, Math.max(0, number));
 }
 
-// 提示词里必须给绝对路径（Read 要用），模型很容易顺手写进 evidence。
-// 出接口前无条件清洗——只靠提示词约束一定会漏。
 export function scrubPaths(text) {
   return String(text ?? "")
-    // 前面必须不是字母/数字/汉字：模型很爱写「第8/9/10屏」「第1/2屏」，
-    // 不加这个 lookbehind 会把它当路径洗成「第8（已隐去路径）屏」（实跑踩到过）。
     .replace(/(?<![\w\u4e00-\u9fff])(?:\/[\w.@-]+){2,}\/?/g, "（已隐去路径）")
     .replace(/[0-9a-f]{16,}\.(?:png|jpe?g|pdf)/gi, "（已隐去文件名）")
     .replace(/[\w.-]+\.(?:png|jpe?g|pdf)/gi, "（已隐去文件名）");
@@ -269,7 +232,6 @@ export function normalizeEvalConfig(input = {}) {
       };
     });
   const total = domains.reduce((sum, domain) => sum + domain.weight, 0);
-  // 权重全为 0（或都被清空）时回落均分，不能让总分变成 NaN
   const normalized = total > 0
     ? domains.map((domain) => ({ ...domain, weight: domain.weight / total }))
     : domains.map((domain) => ({ ...domain, weight: 1 / domains.length }));
@@ -282,9 +244,6 @@ export function normalizeEvalConfig(input = {}) {
   };
 }
 
-// 一张整页图会被 derivePagePreviews 按 crop 拆成多条记录，但 Read 打开的是整张原图。
-// 不按 path 去重的话，模型会被要求「看 8 屏」而其实只有 2 个文件，
-// 而且它同时看到的是并排的多个画板，structure 域会打歪。
 export function selectEvalImages(previewFiles, { limit = MAX_EVAL_IMAGES } = {}) {
   const byPath = new Map();
   (Array.isArray(previewFiles) ? previewFiles : []).forEach((file) => {
@@ -302,9 +261,6 @@ export function selectEvalImages(previewFiles, { limit = MAX_EVAL_IMAGES } = {})
   return { images, total: all.length };
 }
 
-// 给前端看的清单：只有序号、页名、文件名，没有目录。
-// 分帧兜底出来的名字是「第 1 屏…第 10 屏」，直接拼起来是一长串没信息量的字符，
-// 超过 3 个就折成「首名 等 N 个画板」。
 export function buildImageManifest(images) {
   return (images || []).map((image) => {
     const names = image.page_names || [];
@@ -360,15 +316,8 @@ export function renderEvalPrompt(template, { query, images, imageTotal, domains,
     .replaceAll("【Query】", String(query || "").trim());
 }
 
-// 模型没真看图的迹象：超过一半的域在拿「无法读取/根据 Query」搪塞。
-// 这种结果不能混进分析样本，标出来让人一眼看见。
 const NOT_READ_RE = /(无法读取|未提供截图|没有截图|根据\s*Query|依据任务描述)/;
 
-// 模型在证据里原样引用界面文案时，很容易写出裸的英文双引号——
-// 实测它写了 evidence:"…第 8 屏顶部「"iPhone 13" 共 128 件闲置」…"，
-// 整条 JSON 在那里就断了，7 个域全部按 0 分计。提示词管不住（它是在转述截图上的字），
-// 所以解析这一侧必须能修：字符串里遇到 " 时向后看，下一个非空白字符不是结构字符
-// （, : } ]）就说明这是正文里的引号，补上转义。
 export function repairJsonQuotes(text) {
   const source = String(text ?? "");
   let out = "";
@@ -474,10 +423,6 @@ export function parseEvalResult(parsed, domains) {
   };
 }
 
-// 不加权总分：七域直接平均，换算成 100 分制。
-// 2026-08-21 用户定的展示口径——加权总分把「哪一域塌了」藏进了一个数字里，
-// 雷达图已经把分布画出来了，总分只要一个可比的 100 分即可。
-// weightedTotal 保留：老样本按加权存过，换权重重算历史样本仍要用它。
 export function plainTotal(domainScores, domains) {
   const list = domains || DEFAULT_EVAL_DOMAINS;
   const byKey = new Map((domainScores || []).map((entry) => [entry.key, entry]));
@@ -502,8 +447,6 @@ export function weightedTotal(domainScores, domains) {
   return Math.round(total * 10) / 10;
 }
 
-// 一票否决：结构或形式塌了，其它域再高也不能算「好」——
-// 这正是「72 分但难看」要被抓出来的那种情况。
 export function decideVerdict(total, domainScores, domains) {
   const byKey = new Map((domainScores || []).map((entry) => [entry.key, Number(entry.score) || 0]));
   const structure = byKey.get("structure") ?? 10;
@@ -526,8 +469,6 @@ export function normalizeHumanConfirmation(input = {}, domains) {
     const mark = String(value || "").trim();
     if (known.has(key) && MARK_VALUES.has(mark)) marks[key] = mark;
   });
-  // 逐域备注：光有「准/不准」说不清哪里准、哪里歪了，而这正是日后筛维度的依据。
-  // 空字符串直接丢掉，不要在库里留一堆空键。
   const notes = {};
   Object.entries(input.domain_notes || {}).forEach(([key, value]) => {
     const text = clean(value, 500);
@@ -560,7 +501,6 @@ export function summarizeCriteriaScore(rating, criteria) {
   };
 }
 
-// 出接口的形状：绝不带 image_paths 与完整 raw_output
 export function publicEvaluation(row, { includePrompt = false } = {}) {
   const parseJson = (value, fallback) => {
     try {

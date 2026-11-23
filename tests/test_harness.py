@@ -1,4 +1,3 @@
-"""Offline protocol regressions. Synthetic CLI/provider output is not a paper result."""
 import copy
 import importlib.util
 import json
@@ -185,7 +184,6 @@ class PaperProtocolTests(unittest.TestCase):
                 return {'status': 'passed', 'screens': [
                     {'node_id': im['node_id'], 'image': str((folder/im['path']).relative_to(folder)),
                      'sha256': h.digest((folder/im['path']).read_bytes())} for im in judge_config['artifacts'][0]['images']]}
-            # Return existing fixture images via paths relative to the inference case.
             async def capture(*args, **kwargs):
                 report = await blank()
                 for screen in report['screens']:

@@ -1,5 +1,3 @@
-// Initial product design inside a dedicated benchmark copy. Keep this separate
-// from both the legacy new-file workflow and the second-round editing workflow.
 export const BENCHMARK_WORKSPACE = "03 · Workspace";
 export const BENCHMARK_TOOLS = ["whoami", "get_metadata", "use_figma", "get_screenshot"];
 

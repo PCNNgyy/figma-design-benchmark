@@ -2,8 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { verifySeal } from './benchmark_protocol.mjs';
 
-// A completed publication selects verified runs across immutable inference
-// batches. Repoint readers without editing an older cohort or its scores.
 export function resolveCurrentResultsDirectory(directory) {
   directory = path.resolve(directory);
   const file = path.join(directory, 'current-results-pointer.json');

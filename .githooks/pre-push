@@ -1,5 +1,4 @@
 #!/bin/sh
-# Audit the exact commits being sent; never upload private Arena runtime files.
 set -eu
 release_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 while read -r local_ref local_oid remote_ref remote_oid; do

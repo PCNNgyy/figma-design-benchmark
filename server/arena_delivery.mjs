@@ -64,8 +64,6 @@ export function frozenDeliveryLeaderboard(snapshot,{includeCoverage=false}={}){
     rows:rows.map((r,i)=>{if(r.mean_score===null)return{rank:null,...r};if(i===0||r.mean_score!==rows[i-1].mean_score)rank=i+1;return{rank,...r};})};
 }
 
-// Preserve every extracted text exactly once. Coordinate grouping keeps each
-// screen's goal/content/links together instead of interleaving adjacent cards.
 export function normalizeDeliveryRequirements(raw,task){
   if(raw.file_key!==key(task.source_url)||raw.pages?.length!==2)throw Error('Requirement source differs');
   const pages=raw.pages.map(p=>{

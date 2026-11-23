@@ -49,8 +49,6 @@ export function parseArenaJudgeResult(text, { gatePolicy = 'required' } = {}) {
   const def=getScaleMethod('fixed_v4');
   try{return validateRubricObject(parseClaudeJson(text),gatePolicy,def);}
   catch(primary){
-    // A partial draft followed by one complete correction is unambiguous.
-    // Never choose between two valid rubrics on the basis of their scores.
     const valid=[];
     for(const object of completeJsonObjects(text)){
       try{valid.push(validateRubricObject(object,gatePolicy,def));}catch{}

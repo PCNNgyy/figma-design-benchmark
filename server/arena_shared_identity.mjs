@@ -1,5 +1,3 @@
-// Only identities are synchronized. Each cohort keeps its own votes, sorting
-// sessions, screen marks and task focus in its original database.
 export function synchronizeArenaIdentities(source,target){
  if(!source||source===target)return;
  const rows=source.db.prepare(`SELECT r.id,r.label,r.token_hash,a.secret_hash,a.enabled,a.created_at

@@ -4,8 +4,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { verifySeal } from './benchmark_protocol.mjs';
 import { resolveCurrentResultsDirectory } from './benchmark_results_pointer.mjs';
 
-// Read the active scoring cohort, never inference attempts or old score batches.
-// Only this small aggregate is public; individual results and credentials stay private.
 export function readCCLeaderboard(directory, { includeCoverage = false } = {}) {
   directory = resolveCurrentResultsDirectory(directory);
   const read = (name) => verifySeal(JSON.parse(fs.readFileSync(path.join(directory, name), 'utf8')));

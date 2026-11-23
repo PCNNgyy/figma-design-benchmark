@@ -349,8 +349,6 @@ async function zoomImage() {
     await element.decode();
     if(request!==imageRequest)return;
     element.classList.remove('image-loading');scroller.setAttribute('aria-busy','false');if(status)status.hidden=true;if(end)end.hidden=false;reset();
-    // The current source is already in the private cache. Prepare adjacent
-    // originals while the reviewer reads, without decoding an entire gallery.
     const nearby=imageSet.slice(imageAt+1,imageAt+2).filter(im=>im.media_key);
     imageWarmup?.add(nearby,0,current?.pair?.case_id);
   }catch{

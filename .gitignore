@@ -16,7 +16,6 @@ storage/
 *.jsonl
 .claude/
 
-# Framework-only repository. Runtime manifests stay private even outside outputs/.
 *.json
 !/package.json
 !/package-lock.json

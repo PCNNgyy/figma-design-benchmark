@@ -1,8 +1,3 @@
-"""Optional verified-TLS curl transport for the remote MCP HTTP endpoint.
-
-Authorization headers stay in a private temporary file, never process arguments.
-Each logical tool invocation is sent once; this transport does not retry writes.
-"""
 import asyncio
 import json
 import os
@@ -14,7 +9,6 @@ from mcp.types import CallToolResult, ListToolsResult
 
 
 def parse_rpc_response(raw, request_id):
-    """Decode JSON or multiline SSE after optional proxy and HTTP headers."""
     body = bytes(raw)
     while body.startswith(b'HTTP/'):
         boundary = re.search(rb'\r?\n\r?\n', body)
@@ -37,7 +31,6 @@ def parse_rpc_response(raw, request_id):
 
 
 def safe_response_retry(method, params, code, status):
-    # TLS negotiation fails before sending any RPC, including canvas writes.
     if code == 35:
         return True
     readonly = method in {'initialize', 'notifications/initialized', 'tools/list'} or (
@@ -47,7 +40,6 @@ def safe_response_retry(method, params, code, status):
 
 
 def response_headers(raw):
-    """Return completed origin headers, skipping proxy CONNECT and HTTP 1xx."""
     body = bytes(raw)
     status, headers, complete = 0, {}, False
     while body.startswith(b'HTTP/'):
@@ -74,7 +66,6 @@ class CurlSession:
         self.sequence = 0
 
     async def close(self):
-        # Each exchange closes its own subprocess and private header file.
         pass
 
     async def exchange(self, method, params=None, notification=False, _attempt=0):
@@ -110,8 +101,6 @@ class CurlSession:
                     status, received, headers_complete = response_headers(raw)
                     if 'mcp-session-id' in received:
                         self.headers['Mcp-Session-Id'] = received['mcp-session-id']
-                    # Notifications have no JSON-RPC response. A completed
-                    # success header acknowledges them even if SSE stays open.
                     if notification and headers_complete and 200 <= status < 300:
                         break
                     if not notification:
@@ -123,8 +112,6 @@ class CurlSession:
                 if result is None and not notification:
                     await process.wait()
                     error = (await process.stderr.read()).decode(errors="replace")[:350]
-                    # curl 35 means the TLS handshake failed before an HTTP
-                    # request was sent. Retrying this cannot repeat a write.
                     if safe_response_retry(method, params, process.returncode, status) and _attempt < 4:
                         await asyncio.sleep(min(4, 0.5 * 2**_attempt))
                         return await self.exchange(method, params, notification, _attempt + 1)

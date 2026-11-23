@@ -1,21 +1,9 @@
-// 固定型评测 v2（原子设计分层归因版）：20 题 × 0/1/2 = 40，G0 门槛。
-//
-// 题集是 2026-09-03 用 fixed_v3pool（42 题）在 4 case × 3 模型（Opus 5 / Fable 5 / Fable 5.1，
-// 评分模型 服务器 Claude Code）上做题项分析后砍出来的：
-//   - 42 题里 24 题满分率 ≥92%（头部模型都过了"没毛病"这关），全部去掉；
-//   - G1/G2（可编辑/未扁平化）100% 满分、G5 组件复用 100% 零分、G6 样式无证据源——都去掉，
-//     G5 等生成侧真做组件了再作为 v2.1 加回；
-//   - 同层的对齐/间距/内边距三题合成一题（D1 含 D2/D3、D5 含 D4/D6、D7 含压叠出框），
-//     E5/E6（同类分子/组织一致）r=1.00 合成一题；
-//   - 留下的题在题池数据上：Fable 5.1 88.8% / Fable 5 83.1% / Opus 5 75.6%（v1 同 12 条 88.8 / 81.9 / 79.4）。
-// 题号沿用题池的键（A1、D5、N3…），方便和题池数据对照；每题带 2/1/0 标准、层级与重点范围。
 import { GATE_QUESTION, buildDefaultScalePrompt } from "../fixed20_scale.mjs";
 
 const USER = "使用者视角";
 const DESIGNER = "设计师视角";
 
 const questions = [
-  // ---------- 用户体验（使用者视角） ----------
   {
     key: "A1", dimension: "用户体验", layer: "页面", perspective: USER,
     text: "仅凭标题、内容和标签，能否理解每一屏是做什么的？",
@@ -47,7 +35,6 @@ const questions = [
     }
   },
 
-  // ---------- 信息组织 ----------
   {
     key: "B1", dimension: "信息组织", layer: "模块", perspective: DESIGNER,
     text: "属于同一任务、对象或类别的信息是否集中在同一组？",
@@ -59,7 +46,6 @@ const questions = [
     }
   },
 
-  // ---------- 风险识别 ----------
   {
     key: "C2", dimension: "风险识别", layer: "分子", perspective: DESIGNER,
     text: "控件尺寸和相邻间隔是否不存在明显误触风险？",
@@ -71,7 +57,6 @@ const questions = [
     }
   },
 
-  // ---------- 布局质量：分子 / 组织 / 模块各一题对齐 + 一题间距 ----------
   {
     key: "D1", dimension: "布局质量", layer: "分子", perspective: DESIGNER,
     text: "分子（控件）内部各元素是否按边缘、中心线或文字基线对齐，内边距是否均衡且同类一致？",
@@ -113,7 +98,6 @@ const questions = [
     }
   },
 
-  // ---------- 一致性 ----------
   {
     key: "E4", dimension: "一致性", layer: "原子", perspective: DESIGNER,
     text: "相同功能或状态的图标，是否在不同页面中保持一致，且风格（线/面、粗细、尺寸）统一？",
@@ -145,7 +129,6 @@ const questions = [
     }
   },
 
-  // ---------- 视觉表达质量 ----------
   {
     key: "F2", dimension: "视觉表达质量", layer: "原子", perspective: DESIGNER,
     text: "图标是否能够准确、清晰地传达对应的功能或状态？",
@@ -187,7 +170,6 @@ const questions = [
     }
   },
 
-  // ---------- 完成度 ----------
   {
     key: "N1", dimension: "完成度", layer: "组织", perspective: DESIGNER,
     text: "组件是否带有真实产品应有的要素与可信内容，而不是占位、重复或空洞的填充？",
@@ -209,7 +191,6 @@ const questions = [
     }
   },
 
-  // ---------- Figma 结构（看图层树） ----------
   {
     key: "G3", dimension: "Figma结构", layer: "结构", perspective: DESIGNER, layer_only: true,
     text: "页面、Frame 和关键图层的命名是否能够表达其功能？",

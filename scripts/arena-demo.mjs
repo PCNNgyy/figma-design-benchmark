@@ -1,4 +1,3 @@
-// Synthetic, offline fixture. Contains no benchmark outputs or reviewer data.
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';

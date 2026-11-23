@@ -1,4 +1,3 @@
-"""Read the complete final Workspace using a compact wire representation."""
 import argparse
 import asyncio
 import json

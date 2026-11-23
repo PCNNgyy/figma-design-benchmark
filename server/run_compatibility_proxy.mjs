@@ -26,9 +26,6 @@ if (config.request_seed !== undefined && (!Number.isInteger(config.request_seed)
 }
 const runDir = path.dirname(path.resolve(configPath));
 const inferenceProfile = prepareRunInferenceProfile(runDir);
-// 实时思考文件：长思考模型一轮想十几分钟，轨迹要等轮末才落库。
-// 从流式响应里把 thinking_delta 顺手摘出来写到 run 目录，轨迹页 2 秒一刷显示。
-// 每轮（message_start）清空重写；透传本身不受影响。
 const liveThinkingPath = new URL("live-thinking.txt", `file://${configPath.replace(/[^/]*$/, "")}`).pathname;
 let liveCarry = "";
 let liveSize = 0;
@@ -37,7 +34,7 @@ function tapThinking(chunk) {
     const text = liveCarry + chunk.toString("utf8");
     const lines = text.split("\n");
     liveCarry = lines.pop() || "";
-    if (liveCarry.length > 65536) liveCarry = "";  // 防超长行把内存拖爆
+    if (liveCarry.length > 65536) liveCarry = "";
     let out = "";
     for (const line of lines) {
       if (!line.startsWith("data:")) continue;
@@ -55,7 +52,7 @@ function tapThinking(chunk) {
       fs.appendFileSync(liveThinkingPath, out);
       liveSize += out.length;
     }
-  } catch { /* 展示层旁路，出错绝不影响转发 */ }
+  } catch {   }
 }
 const upstream = new URL(config.upstream_base_url);
 const transport = upstream.protocol === "https:" ? https : http;
@@ -71,9 +68,6 @@ const server = http.createServer((request, response) => {
   request.on("data", (chunk) => chunks.push(chunk));
   request.on("end", () => {
     let body = Buffer.concat(chunks);
-    // buffered_stream：Claude Code 永远 stream=true，但 gateway 给 Gemini 做的流式适配会把
-    // tool_use 块丢掉（同一请求非流式能拿到 mcp__figma__whoami，流式只剩文本 + end_turn）。
-    // 开了这个开关就改成非流式打上游，拿到完整 message 后合成 SSE 事件回给 Claude Code。
     let bufferStream = false;
     let imageTransport = null;
     let systemTransport = null;
@@ -119,7 +113,6 @@ const server = http.createServer((request, response) => {
           response.end(JSON.stringify({ error: { type: "inference_profile_error", message: error.message } }));
           return;
         }
-        // 非 JSON 请求体原样转发。
       }
     }
     if (systemTransport) {
@@ -177,7 +170,6 @@ const server = http.createServer((request, response) => {
           try { message = JSON.parse(raw.toString("utf8")); } catch { message = null; }
         }
         if (!message || message.type !== "message") {
-          // 上游报错或不是 message：原样把状态码和正文交回去，别把错误吞成一条空流
           const headers = { ...upstreamResponse.headers, "content-length": raw.length };
           delete headers["transfer-encoding"];
           response.writeHead(upstreamResponse.statusCode || 502, headers);

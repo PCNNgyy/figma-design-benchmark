@@ -1,4 +1,3 @@
-"""Release policy fixtures are constructed locally and contain no real private data."""
 import importlib.util
 from pathlib import Path
 import shutil

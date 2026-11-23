@@ -1,4 +1,3 @@
-// Only these five observed decisions count; never synthesize the sixth pair.
 export function tournamentState(ids, decisions) {
   if (ids.length !== 4 || new Set(ids).size !== 4 || decisions.length > 5) throw Error('Invalid tournament');
   const battles = [], winners = [], losers = [];

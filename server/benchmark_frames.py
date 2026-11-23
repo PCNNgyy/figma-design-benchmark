@@ -1,4 +1,3 @@
-"""Select submitted Workspace screens independently of naming compliance."""
 import re
 
 SCREEN_COUNT_RULE_VERSION = 'support-board-exclusion/v3'
@@ -20,8 +19,6 @@ def benchmark_product_frame(node):
     )
 
 
-# Same rule runs inside the read-only Plugin API snapshot, so layer evidence
-# includes incorrectly named screens too. Naming and dimensions remain judge evidence.
 FIGMA_PRODUCT_FRAME_PREDICATE = (
     "const productFrame=n=>n.type==='FRAME'&&"
     "!/components?|design[\\s_]*system|^review\\b|^reference\\b|组件库|素材库/i.test(n.name)&&"

@@ -182,7 +182,6 @@ test('votes, identities and reviewer progress survive a database reopen; frozen 
 
 test('TrueSkill matches no-draw/no-drift reference and stays finite on a major upset', () => {
   const [winner, loser] = rateWin(RATING, RATING);
-  // trueskill 0.4.5: TrueSkill(tau=0, draw_probability=0).rate_1vs1(...).
   assert.ok(Math.abs(winner.mu - 29.2052208700336) < .000002);
   assert.ok(Math.abs(winner.sigma - 7.194481348831082) < .000002);
   assert.ok(Math.abs(winner.mu + loser.mu - 50) < 1e-10);

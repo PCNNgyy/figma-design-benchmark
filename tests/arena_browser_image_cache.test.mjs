@@ -32,7 +32,6 @@ test('entering review aborts every background transfer and does not mark partial
 
 test('failed, truncated and wrong-version downloads remain retryable and never become local image sources',async()=>{
   let healthy=false;const f=fixture();
-  // Use the manifest hash to return a valid response only on retry.
   const cache=createBrowserImageCache({api:async()=>({cases:f.cases}),localPath:u=>'/arena'+u,
     storage:{keys:async()=>[],get:async key=>f.rows.get(key),put:async row=>f.rows.set(row.url,row),remove:async()=>{}},
     fetchImage:async url=>{const im=f.cases.flatMap(c=>c.items).find(im=>'/arena'+im.url===url);return new Response(healthy?f.blob:'x',{status:!healthy&&url.endsWith('2')?503:200,headers:{'content-type':'image/png',etag:'"'+(!healthy&&url.endsWith('1')?'wrong-version':im.sha256)+'"'}});}});

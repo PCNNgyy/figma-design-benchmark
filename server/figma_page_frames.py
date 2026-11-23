@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Read-only Figma capture: page geometry and native per-frame evidence."""
 from __future__ import annotations
 
 import argparse
@@ -16,9 +15,7 @@ import urllib.request
 from pathlib import Path
 
 MCP_URL = "https://mcp.figma.com/mcp"
-# 与老补图一致：单文件最多这么多画板（红线 5 的约束之一）
 MAX_FRAMES = 24
-# 顶层 frame = <canvas> 的直接子节点，靠缩进两格判定（与 figma_frames.parseTopLevelFrames 同口径）
 TOP_FRAME_RE = re.compile(
     r'^  <(?:frame|component)\s+id="([^"]+)"\s+name="([^"]*)"\s+'
     r'x="(-?[\d.]+)"\s+y="(-?[\d.]+)"\s+width="([\d.]+)"\s+height="([\d.]+)"'
@@ -29,10 +26,10 @@ PAGE_RE = re.compile(r'<canvas\s+id="([^"]+)"\s+name="([^"]*)"')
 def read_token(auth_file: str, auth_lib: str) -> str:
     try:
         sys.path.insert(0, auth_lib)
-        from figma_auth import access_token  # type: ignore
+        from figma_auth import access_token
 
         return access_token(auth_file)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return json.loads(Path(auth_file).read_text(encoding="utf-8"))["access_token"]
 
 
@@ -60,8 +57,6 @@ async def call_tool(token: str, name: str, arguments: dict):
         except FigmaNetworkError as error:
             if not error.safe_to_retry:
                 raise
-            # Connect failures are safe to retry even for use_figma. A lost
-            # write response is deliberately never replayed.
             await session.close()
             from figma_mcp_curl import CurlSession
             session = CurlSession(MCP_URL, {'Authorization': f'Bearer {token}'}, timeout=180)
@@ -120,7 +115,6 @@ def save_screenshot(result, target):
 
 
 def crop_frames(shot: Path, frames: list[dict], out_dir: Path, bounds=None) -> list[dict]:
-    """按坐标裁。包围盒取自各 frame 自身（canvas 的 width/height 恒为 0，不能用）。"""
     with open_page_screenshot(shot) as image:
         return crop_page_image(image, frames, out_dir, bounds)
 
@@ -136,7 +130,6 @@ def crop_page_image(image, frames, out_dir, bounds):
         raise RuntimeError("frame 包围盒无效")
     scale_x = width / (x1 - x0)
     scale_y = height / (y1 - y0)
-    # 两个方向的比例必须一致（差 1% 以上说明截图不是整页，别硬裁）
     if abs(scale_x - scale_y) / max(scale_x, scale_y) > 0.01:
         raise RuntimeError(f"截图与包围盒比例不一致（{scale_x:.4f} vs {scale_y:.4f}），放弃裁帧")
     written = []
@@ -156,7 +149,6 @@ def crop_page_image(image, frames, out_dir, bounds):
 
 
 def native_capture_ids(frames, bounds, manifest, out_dir, minimum_side=0):
-    """A valid page crop can still contain overlapping sibling artboards."""
     required, digests = set(), {}
     by_id = {item["node_id"]: item for item in manifest}
     for frame in frames:
@@ -189,8 +181,6 @@ def native_dimension(frame, options):
     minimum=getattr(options,'minimum_frame_side',0)
     width,height=frame.get('w',0),frame.get('h',0)
     if minimum and min(width,height)>0:
-        # Preserve the short-side verification floor on long mobile screens.
-        # A few pixels of margin cover Figma's output rounding.
         dimension=max(dimension,math.ceil((minimum+4)*max(width,height)/min(width,height)))
     return min(dimension,8000)
 
@@ -213,7 +203,6 @@ async def capture_native_frame(token, frame, options, out_dir, debug):
 
 
 def native_checkpoint(frame, options, out_dir, entry=None):
-    """Reuse only a node-bound capture from the exact same final inventory."""
     folder = out_dir / "native-checkpoints"
     file = folder / f"{frame['node_id'].replace(':', '-')}.json"
     inventory = hashlib.sha256(Path(options.inventory_file).read_bytes()).hexdigest() if options.inventory_file else None
@@ -378,7 +367,7 @@ def main() -> int:
     try:
         print(json.dumps(asyncio.run(main_async(options)), ensure_ascii=False))
         return 0
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         print(json.dumps({"ok": False, "error": str(error)[:500] or type(error).__name__}, ensure_ascii=False))
         return 1
 

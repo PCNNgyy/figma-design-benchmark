@@ -11,7 +11,7 @@ function finish(state, order, votes = []) {
     const {a, b} = state.pending;
     assert.equal(preferenceGraph(state.models, votes).compare(a, b), null, 'A vote must only be requested for an unknown relation');
     votes.push({id: votes.length + 1, a, b, winner: rank.get(a) < rank.get(b) ? a : b, outcome: 'win'});
-    state = JSON.parse(JSON.stringify(state)); // Every pending stage can survive a refresh.
+    state = JSON.parse(JSON.stringify(state));
   }
 }
 

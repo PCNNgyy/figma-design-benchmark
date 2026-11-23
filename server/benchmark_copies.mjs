@@ -75,15 +75,12 @@ export async function provisionCopies(dataset, plan, journalFile, provider, { li
     }
    }
   };
-  // Await every in-flight operation before closing browsers or reporting errors.
   const results = await Promise.allSettled(providers.map(worker));
   const failed = results.find((r) => r.status === "rejected");
   if (failed) throw failed.reason;
   return journal;
 }
 
-// Uses the same native File > Duplicate workflow as the previously delivered
-// fresh workbooks. References and components are copied by Figma itself.
 export async function openFigmaCopyProvider(config) {
   for (const field of ["playwright_module", "browser_executable", "storage_state", "browser_lease_module", "identity_email", "identity_name", "user_id", "destination"]) {
     if (!config[field]) throw new Error(`Browser configuration requires ${field}`);
@@ -114,7 +111,6 @@ export async function openFigmaCopyProvider(config) {
   };
   try {
     await page.goto(config.destination, { waitUntil: "domcontentloaded", timeout: config.navigation_timeout_ms || 60000 });
-    // Figma renamed the account menu button to ProfileButton (2026-10); keep the older label as a fallback.
     const profile = page.getByTestId("ProfileButton").or(page.getByRole("button", { name: `Account dropdown for ${config.identity_name}`, exact: true })).first();
     await Promise.race([
       profile.waitFor({ state: "visible", timeout: config.navigation_timeout_ms || 45000 }),
@@ -153,14 +149,11 @@ export async function openFigmaCopyProvider(config) {
       if (figmaKey(page.url()) !== sourceKey) throw new Error("Opened source does not match the immutable URL");
       await page.getByRole("button", { name: "Edit file menu", exact: true }).click();
       const isCopy = (url) => /^\/(design|file)\//.test(url.pathname) && url.pathname.split("/")[2] !== sourceKey;
-      // Persist the new file identity when navigation commits. Waiting for the
-      // editor's full load can time out after Figma has already made the copy.
       const newTab = context.waitForEvent("page", { timeout: 60000 }).then(async (tab) => { await tab.waitForURL(isCopy, { waitUntil: "commit", timeout: 60000 }); return tab; });
       const sameTab = page.waitForURL(isCopy, { waitUntil: "commit", timeout: 60000 }).then(() => page);
       const copiedPage = Promise.any([newTab, sameTab]);
-      copiedPage.catch(() => {}); // A rejected click must not leave an unhandled navigation promise.
+      copiedPage.catch(() => {});
       beforeDuplicate();
-      // Figma renamed the item to "Duplicate to your drafts" (2026-10); keep the older label as a fallback.
       await page.getByRole("menuitem", { name: "Duplicate to your drafts", exact: true })
         .or(page.getByRole("menuitem", { name: "Duplicate", exact: true })).first().click();
       const next = await copiedPage;
@@ -188,8 +181,6 @@ export async function openFigmaCopyProvider(config) {
       await page.keyboard.press("Escape");
     },
     async close() {
-      // Keep refresh cookies from authenticated sessions. A redirect to login
-      // must never overwrite a previously valid saved session.
       try { if (!new URL(page.url()).pathname.startsWith("/login")) await persistSession(); }
       catch (error) { console.error(`Browser session persistence failed: ${error.message}`); }
       finally { try { await browser.close(); } finally { release(); } }

@@ -1,4 +1,3 @@
-"""Opt-in, task-scoped checking of the named screens required by the brief."""
 import collections
 import hashlib
 import json

@@ -1,5 +1,3 @@
-// Retain a small window of decoded originals, never an entire task's bitmaps.
-// This cache grants no screen-view receipts; the visible UI still confirms paint.
 export function createDecodedImages({localPath,budget=96*1024*1024,limit=8,makeImage=()=>new Image()}={}){
   const entries=new Map();let bytes=0,stopped=false;
   const touch=(url,entry)=>{entries.delete(url);entries.set(url,entry);};

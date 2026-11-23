@@ -4,8 +4,6 @@ const modelPair = (a,b) => JSON.stringify([a,b].sort());
 export const validBallot = v => v.outcome ? v.outcome !== 'unable' : Boolean(v.winner_id);
 export const ballotOutcome = v => v.outcome || (v.winner_id ? 'win' : 'unable');
 
-// Four distinct comparisons cover every available model in each task. Among
-// feasible matchings, balance model exposure first and opponent exposure next.
 export function balancedArenaPairs(candidates, perCase = 4) {
   const models = [...new Set(candidates.map(c => c.model_id))].sort(), exposure = new Map(models.map(m => [m,0])), opponents = new Map();
   const result = [];

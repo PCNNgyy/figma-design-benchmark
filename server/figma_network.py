@@ -1,8 +1,3 @@
-"""Verified-TLS, pooled HTTP/2 transport shared by Figma RPC and image reads.
-
-Only connection establishment failures are retried for potentially mutating
-requests. A lost response after a write is never silently replayed.
-"""
 import asyncio
 from io import BytesIO
 import json
@@ -166,7 +161,6 @@ async def download_image(url, *, network=None, attempts=3):
 
 
 def download_image_sync(url):
-    """Bridge existing synchronous capture callbacks without nesting event loops."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:

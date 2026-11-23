@@ -56,7 +56,7 @@ test('persistent sort recovers six-model order, refreshes the same random displa
     rows:f.snapshot.candidates.map(c=>({candidate_id:c.id,model_id:c.model_id,case_id:c.case_id,run_id:c.run_id,scores:{j:c.cc_score}}))};
   const agreement=compareJudgesWithHumans(scores,human);
   assert.equal(agreement.judges[0].human_agreement.compared,final.actual_votes);
-  assert.equal(agreement.judges[0].human_agreement.agreed,0); // fixture prefers lower model index, scores increase
+  assert.equal(agreement.judges[0].human_agreement.agreed,0);
   assert.equal(d.task_statistics.tasks[0].first_cycle_target,null);assert.equal(d.task_statistics.tasks[0].reviewers.find(x=>x.reviewer_id===r).first_cycle_complete,true);
   assert.ok(!JSON.stringify(first).includes('SECRET_MODEL'));assert.ok(!JSON.stringify(first).includes('model-'));
 });

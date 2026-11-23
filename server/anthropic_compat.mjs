@@ -4,8 +4,6 @@ export function needsToolImageNormalization(model) {
   catch { return false; }
 }
 
-// Some gateways serialize images nested in tool_result as text. Keep tool
-// pairing and every image byte, but present images as ordinary user blocks.
 export function liftToolResultImages(parsed, onMove = () => {}) {
   if (!Array.isArray(parsed?.messages)) return parsed;
   for (const [messageIndex, message] of parsed.messages.entries()) {
@@ -71,10 +69,6 @@ export function normalizeTextOnlyAnthropicBody(parsed) {
   return parsed;
 }
 
-// 把请求历史里的 thinking/redacted_thinking 块剥掉。Anthropic 语义允许不回传思考；
-// qnaigc 这类网关把历史转内部 OpenAI 格式时不认 thinking 块（type 映射成空），
-// 第二轮起每个请求都 502 "messages[N].content[0].type类型错误"（2026-08-28 GLM-5.3 实测）。
-// 剥完 content 变空的兜一个空文本块，别让消息本身非法。
 export function stripThinkingBlocks(parsed) {
   if (!parsed || !Array.isArray(parsed.messages)) return parsed;
   for (const message of parsed.messages) {
@@ -89,10 +83,6 @@ export function stripThinkingBlocks(parsed) {
   return parsed;
 }
 
-// 把一条完整的 Anthropic message 合成为 SSE 事件流（与官方 stream=true 的事件形状一致）。
-// 用途：gateway 给 Gemini 做的流式适配会把 tool_use 块丢掉（同一请求非流式能拿到
-// mcp__figma__whoami，流式只剩一段文本 + end_turn），而 Claude Code 永远走流式。
-// 代理层改成非流式打上游、拿到完整响应后在这里合成事件回给 Claude Code。
 export function synthesizeAnthropicSse(message) {
   const events = [];
   const push = (type, payload) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...payload })}\n\n`);
@@ -117,14 +107,12 @@ export function synthesizeAnthropicSse(message) {
       if (block.text) push("content_block_delta", { index, delta: { type: "text_delta", text: block.text } });
     } else if (block.type === "tool_use") {
       push("content_block_start", { index, content_block: { type: "tool_use", id: block.id, name: block.name, input: {} } });
-      // 官方流式里 input 以 partial_json 分片下发，这里一次给全
       push("content_block_delta", { index, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input ?? {}) } });
     } else if (block.type === "thinking") {
       push("content_block_start", { index, content_block: { type: "thinking", thinking: "" } });
       if (block.thinking) push("content_block_delta", { index, delta: { type: "thinking_delta", thinking: block.thinking } });
       if (block.signature) push("content_block_delta", { index, delta: { type: "signature_delta", signature: block.signature } });
     } else {
-      // 其他块（redacted_thinking 等）整块给出
       push("content_block_start", { index, content_block: block });
     }
     push("content_block_stop", { index });

@@ -1,4 +1,3 @@
-"""Bounded page decoding and lossless-source judge image preparation."""
 import argparse
 from contextlib import contextmanager
 import hashlib
@@ -11,7 +10,6 @@ from PIL import Image
 
 MAX_CANVAS_SIDE = 32768
 MAX_CANVAS_PIXELS = 512 * 1024 * 1024
-# Bedrock limits each base64 image, so account for encoding overhead too.
 MAX_JUDGE_BASE64_BYTES = 5_000_000
 MAX_JUDGE_TOTAL_BYTES = 24 * 1024 * 1024
 
@@ -22,8 +20,6 @@ def base64_size(byte_count):
 
 @contextmanager
 def open_page_screenshot(path):
-    # The screenshot exporter can return a 32K-wide PNG. Check its header
-    # before allowing more pixels than Pillow's default; never disable the cap.
     with Path(path).open("rb") as source:
         header = source.read(24)
     if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
@@ -41,12 +37,6 @@ def open_page_screenshot(path):
 
 
 def prepare_judge_images(images, output, max_total_bytes=MAX_JUDGE_TOTAL_BYTES):
-    """Keep every selected screen; resize only API-incompatible evidence copies.
-
-    Claude's many-image request limit applies to every image when there are
-    more than 20. Original captures and already completed scores stay intact.
-    https://platform.claude.com/docs/en/build-with-claude/vision
-    """
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     limit = 2000 if len(images) > 20 else 8000
@@ -58,8 +48,6 @@ def prepare_judge_images(images, output, max_total_bytes=MAX_JUDGE_TOTAL_BYTES):
         submitted = source
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
         original_bytes = source.stat().st_size
-        # Keep all screens. Oversized batches share a byte budget instead of
-        # repeatedly preparing the same too-large request or dropping images.
         byte_limit = MAX_JUDGE_BASE64_BYTES // 4 * 3
         if bounded_batch:
             byte_limit = min(byte_limit, max(256, int(max_total_bytes * 0.96 * original_bytes / total_source_bytes)))

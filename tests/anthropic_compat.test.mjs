@@ -77,7 +77,6 @@ test("第三方 Anthropic 兼容端点只压平纯文本块，工具调用与工
   assert.deepEqual(payload.messages[2].content, [toolResult]);
 });
 
-// qnaigc 网关不认历史里的 thinking 块（第二轮起 502 type 空）——剥掉且不产生非法空 content
 test("stripThinkingBlocks 剥思考块并兜底空 content", async () => {
   const { stripThinkingBlocks } = await import("../server/anthropic_compat.mjs");
   const body = { messages: [

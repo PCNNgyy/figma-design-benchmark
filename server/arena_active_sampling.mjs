@@ -45,8 +45,6 @@ function information(theta,counts,precision){
     m[i][i]+=w;m[j][j]+=w;m[i][j]-=w;m[j][i]-=w;}
   return m;
 }
-// The ridge is only for sampling predictions and a finite covariance proxy.
-// It never adds a ballot or changes the separate unregularized BT leaderboard.
 export function samplingEvidence(candidates,pairs,ballots,policy){
   const models=[...new Set(candidates.map(c=>c.model_id))].sort(),n=models.length,index=new Map(models.map((id,i)=>[id,i]));
   const byId=new Map(candidates.map(c=>[c.id,c])),byPair=new Map(pairs.map(p=>[p.id,p]));

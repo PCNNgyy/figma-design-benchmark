@@ -17,8 +17,6 @@ test('revision drops only replaced-output evidence, replays unchanged direct vot
   }
  }
  const before=store.db.prepare("SELECT * FROM incremental_sort_sessions WHERE case_id='case1'").get(),total=store.db.prepare('SELECT COUNT(*) n FROM ballots').get().n;
- // Legacy battle links may remain after switching this cohort to incremental
- // review. A changed pair must be archived without dropping unrelated links.
  store.db.exec('CREATE TABLE tournament_battles (tournament_id TEXT, step INTEGER, pair_id TEXT REFERENCES pairs(id))');
  const oldPair=store.db.prepare('SELECT id FROM pairs WHERE first_id=? OR second_id=? LIMIT 1').get(candidates[0].id,candidates[0].id).id;
  const retainedPair=store.db.prepare("SELECT id FROM pairs WHERE case_id='case1' LIMIT 1").get().id;

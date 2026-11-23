@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Audit the exact Git index/tree for a framework-only, text-only release."""
 import argparse
 import ipaddress
 import json
@@ -45,7 +44,6 @@ def allowed_path(name):
 
 
 def scan_content(data):
-    """Return categories and line numbers, never echo potentially private values."""
     if len(data) > MAX_FILE_BYTES:
         return [{'kind': 'oversized-file', 'line': None}]
     try:
