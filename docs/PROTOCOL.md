@@ -50,6 +50,8 @@ Timeouts terminate the entire CLI/MCP process group. Runtime errors and incomple
 
 ## Arena runtime boundary
 
+For the paper's Bradley–Terry aggregation, use a version 3 tournament snapshot with incremental ranking disabled, private admin access and curated anonymous editable-file links. The synthetic version 1 demo uses TrueSkill; version 2 and incremental ranking also use different statistics. See [the paper alignment audit](PAPER_ALIGNMENT.md#arena-paths-and-paper-use) for the exact paths and numerical-normalization limits.
+
 The repository provides the Arena source and a synthetic fixture generator. Private snapshots, candidate images, source manifests, accounts, annotations, votes, score exports, SQLite files and logs belong in ignored runtime directories, not Git.
 
 A round binds local candidate identities to versioned screenshot hashes. Reviewer APIs conceal model identities and scores during blinded comparison. Private database clones can be revised or extended using explicit expected candidate replacements/additions; unchanged votes and pending screen work remain attached to their evidence. Revisions do not manufacture votes or establish ranking links between unconnected models.
