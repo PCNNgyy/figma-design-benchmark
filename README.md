@@ -1,39 +1,39 @@
-# FigmaEval: Native Figma Design Benchmark
+# FigmaEval：原生 Figma 设计基准
 
-Code for **FigmaEval: A Benchmark for Evaluating AI Agents in Professional UI Design**. The release implements the paper's core native Figma inference and rubric-judging workflow under `figmaeval-cvpr2027/v1`, and provides a configurable Arena framework for blinded human comparisons.
+本仓库提供论文 **FigmaEval: A Benchmark for Evaluating AI Agents in Professional UI Design** 的代码。本次发布基于 `figmaeval-cvpr2027/v1` 协议，实现了论文的核心流程：在原生 Figma 环境中进行推理，并依据评分量表进行评审；同时提供可配置的 Arena 框架，用于人工盲评比较。
 
-**No benchmark task files, design outputs, screenshots, trajectories, reviewer identities, ballots, scores, credentials, production account settings or internal server paths are distributed.** Examples and tests use placeholders or synthetic fixtures. Demo PNGs are generated locally when requested; no generated demo assets are committed.
+**本仓库不发布基准任务文件、设计产物、截图、轨迹、评审者身份、投票记录、评分、凭据、生产环境账号配置或内部服务器路径。** 示例和测试使用占位内容或合成测试数据。演示 PNG 仅在需要时于本地生成，生成的演示资源不会提交到仓库。
 
-## Alignment with the paper
+## 与论文的对应关系
 
-| Paper requirement | Implementation and use |
+| 论文要求 | 实现方式与使用说明 |
 |---|---|
-| Constrained specifications, open design solutions | Read the brief, branding, components and media; independently design native editable Figma screens. Original reference layouts are withheld. |
-| 84 tasks, 783 required screens, eleven generation models | `scope: full` validates the complete 924-artifact matrix; `scope: subset` is explicitly partial. Actual task resources are separate private inputs. |
-| One Claude Code agent harness | `scripts/claude_code_harness.py` runs every generation model through the same CLI/tool loop; no direct SGLang loop is used by this entry point. |
-| Four Figma MCP tools | Only `whoami`, `get_metadata`, `get_screenshot` and `use_figma`; iterative screenshots and repairs remain enabled. |
-| 22 criteria, six dimensions, 53 points | Frozen `fixed_v4` definitions; the judge sees every product screen and its matching Figma layer summary. |
-| Three judges and three seeded passes | Claude Opus 5.5, GPT-6.1 Sol and DeepSeek V4.1 Flash; independent contexts request seeds 42, 102 and 423. |
-| Table 2 score aggregation | Average three passes per judge, then the three judges, normalize by 53, and average tasks equally. Missing blocks remain missing. |
-| Blinded human comparisons and Bradley–Terry ranking | Use the Arena **version 3 tournament** with incremental ranking disabled, private admin access and curated anonymous editable-file access. The demo and alternative ranking modes are not the paper's BT path. |
+| 需求规格受约束，设计方案开放 | 读取设计需求、品牌规范、组件和媒体资源，自主设计原生、可编辑的 Figma 界面；不提供原始参考布局。 |
+| 84 个任务、783 个必需界面、11 个生成模型 | `scope: full` 校验包含 924 个产物的完整矩阵；`scope: subset` 明确表示仅覆盖部分范围。实际任务资源作为独立的私有输入提供。 |
+| 统一的 Claude Code 智能体运行框架 | `scripts/claude_code_harness.py` 让所有生成模型使用相同的 CLI／工具循环；该入口不使用直接调用 SGLang 的循环。 |
+| 四个 Figma MCP 工具 | 仅使用 `whoami`、`get_metadata`、`get_screenshot` 和 `use_figma`；支持通过多轮截图检查并修正设计。 |
+| 22 项标准、6 个维度、53 分 | 使用冻结的 `fixed_v4` 定义；评审模型查看每个产品界面及其对应的 Figma 图层摘要。 |
+| 三位评审模型，每位进行三次指定种子的评审 | 使用 Claude Opus 5.5、GPT-6.1 Sol 和 DeepSeek V4.1 Flash；在独立上下文中分别请求种子 42、102 和 423。 |
+| 表 2 的评分汇总方式 | 先对每位评审模型的三次评分取平均，再对三位评审模型取平均，除以 53 进行归一化，最后对各任务等权平均。缺失的评分块保持缺失。 |
+| 盲测人工比较与 Bradley–Terry 排名 | 使用 Arena **版本 3 锦标赛**，关闭增量排名，启用私有管理员访问，并提供经过整理的匿名可编辑文件访问方式。演示及其他排名模式并非论文使用的 BT 流程。 |
 
-The Table 1 score allocation is:
+表 1 的分值分配如下：
 
-| Dimension | Criteria | Maximum |
+| 维度 | 评分项 | 满分 |
 |---|---|---:|
-| User Experience | A1–A4 | 8 |
-| Information Organization | B1–B5 | 15 |
-| Layout Quality | D1–D4 | 12 |
-| Consistency | E1–E2 | 4 |
-| Visual Presentation | F1–F5 | 10 |
-| Deliverable Quality | G1–G2 | 4 |
-| Total | 22 | 53 |
+| 用户体验 | A1–A4 | 8 |
+| 信息组织 | B1–B5 | 15 |
+| 布局质量 | D1–D4 | 12 |
+| 一致性 | E1–E2 | 4 |
+| 视觉呈现 | F1–F5 | 10 |
+| 交付质量 | G1–G2 | 4 |
+| 总计 | 22 | 53 |
 
-B1–B5 and D1–D4 each use 0–3; the remaining thirteen criteria use 0–2. Overall quality is normalized from the summed item scores, **not an equal-weight average of the six dimension percentages**. The eleven generation identities are Claude Sonnet 5.5, Claude Opus 5.5, DeepSeek V4 Flash, GPT-6.1 Sol, GPT-6 Astra, Qwen 3.8 Max, Fable 5.1, GLM-5.3 Flash, SenseNova 6.8 Flash, Gemini 3.5 Flash and Kimi K3.
+B1–B5 和 D1–D4 各项采用 0–3 分，其余 13 项采用 0–2 分。总体质量由各项得分之和归一化得到，**不是对六个维度的百分比分数进行等权平均**。11 个生成模型分别为 Claude Sonnet 5.5、Claude Opus 5.5、DeepSeek V4 Flash、GPT-6.1 Sol、GPT-6 Astra、Qwen 3.8 Max、Fable 5.1、GLM-5.3 Flash、SenseNova 6.8 Flash、Gemini 3.5 Flash 和 Kimi K3。
 
-## Setup
+## 环境配置
 
-Requires Linux, Python 3.11+, Node.js 22.16+, and a Claude Code CLI supporting `--bare`, `--restricted`, `--strict-mcp-config`, `--permission-mode dontAsk`, and streaming JSON output. Every invocation records the actual CLI version.
+需要 Linux、Python 3.11+、Node.js 22.16+，以及支持 `--bare`、`--restricted`、`--strict-mcp-config`、`--permission-mode dontAsk` 和流式 JSON 输出的 Claude Code CLI。每次调用都会记录实际使用的 CLI 版本。
 
 ```bash
 npm ci
@@ -46,11 +46,11 @@ npm run test:python
 npm run release:check
 ```
 
-No license is granted by this release; licensing is pending. External dependencies retain their respective licenses. The CLI, Figma MCP, model access, accounts and OAuth credentials are external prerequisites.
+本次发布不授予任何使用许可，许可证方案待定。外部依赖仍遵循各自的许可证。CLI、Figma MCP、模型访问权限、账号和 OAuth 凭据均需事先另行准备。
 
-## Inference
+## 推理
 
-Copy `examples/inference.example.json` and its query file into `private/`. All example gateways, accounts and Figma file links are placeholders. Put actual credentials only in environment variables and private OAuth files.
+将 `examples/inference.example.json` 及其查询文件复制到 `private/`。示例中的所有网关、账号和 Figma 文件链接均为占位内容。真实凭据仅应存放于环境变量和私有 OAuth 文件中。
 
 ```bash
 python scripts/claude_code_harness.py inference \
@@ -59,19 +59,19 @@ python scripts/claude_code_harness.py inference \
   --config private/inference.json --output outputs/inference
 ```
 
-`npm run paper:inference -- ...` is an equivalent entry point using Python 3 on PATH. `--validate-only` checks configuration structure and protocol constraints; it does not check files, credentials, writable seats, quotas or service availability.
+`npm run paper:inference -- ...` 是等价入口，使用 PATH 中的 Python 3。`--validate-only` 检查配置结构与协议约束，不检查文件、凭据、可写席位、配额或服务可用性。
 
-Each task/model gets a distinct writable native copy of its read-only source Starter File. The original query contains the source URL once; only that URL is replaced for execution. The four reference pages are `00 · Start Here`, `01 · Foundations`, `02 · Components` and `03 · Media`. A separate, initially empty `03 · Workspace` receives the design. The agent can inspect, create, take screenshots and refine through exactly four Figma MCP tools: `whoami`, `get_metadata`, `get_screenshot` and `use_figma`.
+每个任务／模型组合都会获得一份独立、可写的原生副本，其来源是只读的 Starter File。原始查询中只包含一次源文件 URL，执行时仅替换该 URL。四个参考页面分别为 `00 · Start Here`、`01 · Foundations`、`02 · Components` 和 `03 · Media`。另设一个初始为空的 `03 · Workspace` 页面，用于放置设计。智能体仅通过四个 Figma MCP 工具进行检查、创建、截图和迭代完善：`whoami`、`get_metadata`、`get_screenshot` 和 `use_figma`。
 
-Claude Code owns every model/tool loop. The harness schedules isolated CLI processes, takes account/file locks, records telemetry, and runs deterministic screen-count and blank-screen checks. It does not launch an alternative direct model loop. A failed generation remains failed even if the file happens to contain enough frames.
+每个模型／工具循环均由 Claude Code 负责。运行框架调度隔离的 CLI 进程，对账号和文件加锁，记录遥测，并执行确定性的界面数量检查与空白界面检查。它不会启动另一套直接调用模型的循环。即使文件中恰好包含足够数量的 Frame，失败的生成任务仍记为失败。
 
-Configure `paper_model`, `cli_model`, the Anthropic-compatible `base_url`, `api_key_env`, and `returned_model_prefixes` per route. Optional `route_model` starts a loopback routing proxy; it does not translate OpenAI Responses into Anthropic messages. Configured and returned model labels are recorded for each invocation.
+为每条路由配置 `paper_model`、`cli_model`、兼容 Anthropic 的 `base_url`、`api_key_env` 和 `returned_model_prefixes`。可选的 `route_model` 会启动一个本机回环路由代理；该代理不会将 OpenAI Responses 转换为 Anthropic messages。每次调用都会记录配置中的模型标识和实际返回的模型标识。
 
-`scope: subset` is for local smoke tests or explicitly scoped comparisons. `scope: full` requires 84 tasks, 783 required screens and all eleven generation models, yielding 924 task/model jobs. The dataset itself is not included.
+`scope: subset` 用于本地冒烟测试或明确限定范围的比较。`scope: full` 要求包含 84 个任务、783 个必需界面以及全部 11 个生成模型，共产生 924 个任务／模型作业。本仓库不包含数据集本身。
 
-## Three-judge scoring
+## 三位评审模型评分
 
-Copy `examples/judges.example.json` to a private directory and configure three independent routes: Claude Opus 5.5, GPT-6.1 Sol and DeepSeek V4.1 Flash. The generating DeepSeek model is V4 Flash; it is a separate identity from the V4.1 Flash judge.
+将 `examples/judges.example.json` 复制到私有目录，并配置三条独立路由：Claude Opus 5.5、GPT-6.1 Sol 和 DeepSeek V4.1 Flash。用于生成的 DeepSeek 模型是 V4 Flash，与用作评审的 V4.1 Flash 是不同的模型标识。
 
 ```bash
 python scripts/claude_code_harness.py judge \
@@ -82,47 +82,47 @@ python scripts/claude_code_harness.py judge \
   --output outputs/judges
 ```
 
-`npm run paper:judge -- ...` is equivalent. `--from-inference` imports every artifact from a complete, accepted new-protocol batch and rejects missing/failed jobs. Alternatively, configure explicit artifacts with the original query, final inventory, matching layer summary, expected screen count, and every product-frame PNG with its node ID. All repetitions use frozen copies of the same evidence.
+`npm run paper:judge -- ...` 是等价入口。`--from-inference` 从完整且已通过验收的新协议批次中导入所有产物，并拒绝存在缺失或失败作业的批次。也可以显式配置产物，提供原始查询、最终界面清单、匹配的图层摘要、预期界面数量，以及每个产品 Frame 的 PNG 和节点 ID。所有重复评审均使用同一份证据的冻结副本。
 
-The protocol requires three independent CLI contexts per judge, with seeds **42, 102 and 423**, and explicit `gate_policy: required`. Each context has only `Read` and no MCP server; every PNG must produce a successful image tool result. The 22 scored criteria sum to 53; G0 is a separate viability gate. Missing images, malformed/missing items, invalid evidence, timeouts and API failures remain missing, not zero scores. A valid G0 failure can produce a genuine zero.
+协议要求每位评审模型使用三个独立的 CLI 上下文，种子分别为 **42、102 和 423**，并显式设置 `gate_policy: required`。每个上下文仅有 `Read` 工具，不配置 MCP 服务器；每张 PNG 都必须成功产生图像工具读取结果。22 个计分项的满分合计为 53；G0 是独立的可用性门槛。缺失图片、格式错误或缺失的评分项、无效证据、超时和 API 失败均保持缺失，不记为零分。有效判定的 G0 未通过可以产生真实的零分。
 
-The loopback proxy forwards the configured seed in upstream message requests and records the request hash and HTTP response status. Configure a gateway that accepts the message format and seed parameter.
+本机回环代理会在上游消息请求中转发配置的种子，并记录请求哈希和 HTTP 响应状态。所配置的网关须支持相应消息格式与种子参数。
 
-Results include per-judge three-pass means and sample standard deviations, artifact means and dimension percentages in `scores.json`, and equal-task-weight model summaries in `model-scores.json`. A missing repetition prevents that judge's mean; an incomplete judge block prevents the artifact mean. Missing tasks also prevent the configured model aggregate. Full judging needs 8,316 independent invocations.
+结果包括 `scores.json` 中每位评审模型三次评分的均值与样本标准差、产物均分和各维度百分比分数，以及 `model-scores.json` 中按任务等权汇总的模型结果。缺少任意一次重复评审时，不计算该评审模型的均分；任意评审模型的评分块不完整时，不计算该产物的均分。缺少任务时，也不计算配置范围内的模型汇总结果。完整评审需要 8,316 次独立调用。
 
-## Human Arena framework
+## 人工 Arena 框架
 
-**Select the ranking mode explicitly.** `npm run demo` generates a synthetic version 1 round using the legacy TrueSkill path; it tests the UI and is not the paper's Bradley–Terry evaluation. Version 2 uses balanced-pairwise win rates. Version 3 without incremental ranking uses Bradley–Terry. The optional incremental mode reports within-task orders and does not compute a global BT rating.
+**请显式选择排名模式。** `npm run demo` 使用旧版 TrueSkill 流程，生成一个合成的版本 1 轮次，用于测试界面，并非论文中的 Bradley–Terry 评测。版本 2 使用平衡配对胜率。版本 3 在关闭增量排名时使用 Bradley–Terry。可选的增量模式仅报告任务内排序，不计算全局 BT 评分。
 
-For paper-style human evaluation, prepare a private **version 3** snapshot using `tournamentProtocol()` from `server/arena_tournament.mjs`, recruit professional designers, and freeze the candidate cohort before collecting votes. Supply the standardized brief, aligned screenshots and anonymous editable Figma files; validate the private anonymous-link mapping with `server/arena_figma_links.mjs` and inspect file titles/content for identifying information. Then start:
+若要按论文方式开展人工评测，请使用 `server/arena_tournament.mjs` 中的 `tournamentProtocol()` 准备私有的**版本 3**快照，招募专业设计师，并在收集投票前冻结候选集合。提供标准化的设计需求、对齐的截图和匿名可编辑 Figma 文件；使用 `server/arena_figma_links.mjs` 校验私有匿名链接映射，并检查文件标题与内容中是否存在可识别身份的信息。随后启动：
 
 ```bash
 npm run arena -- --directory private/paper-arena --host 127.0.0.1 --port 18186 \
   --incremental-ranking false --public-admin false --show-figma-links true
 ```
 
-The explicit flags override any saved service settings. Inspect the admin dashboard's `ranking.method`: the paper-compatible BT path reports `design-arena-bradley-terry-mm/v3`. Reviewer payloads conceal model identities and automated scores; left/right assignment is randomized deterministically per pair. The anonymous-link mapping and all editable files remain private runtime inputs, not repository contents.
+显式传入的参数会覆盖已保存的服务设置。检查管理员面板中的 `ranking.method`：与论文一致的 BT 流程应显示 `design-arena-bradley-terry-mm/v3`。发送给评审者的数据不包含模型身份和自动评分；左右分配按每一对候选以确定性方式随机化。匿名链接映射和所有可编辑文件均作为私有运行时输入提供，不属于仓库内容。
 
-The BT implementation counts observed decisive ballots and excludes `unable`. Disconnected or separated comparison graphs are reported without finite global rankings. The displayed rating is `400 × log10(strength)` with geometric-mean strength one.
+BT 实现统计实际观测到、可判定胜负的投票，并排除 `unable`。当比较图不连通或存在统计分离（separation）时，系统会报告该情况，不给出有限的全局排名。显示的评分为 `400 × log10(strength)`，强度的几何平均值归一化为 1。
 
-For a UI-only local smoke test:
+仅测试界面的本地冒烟测试：
 
 ```bash
 npm run demo
 cat outputs/arena-demo/access.json
 ```
 
-Use a fresh directory on a later start: `npm run demo -- outputs/demo-2`. To run your own private round:
+后续启动时请使用新目录：`npm run demo -- outputs/demo-2`。运行自己的私有轮次：
 
 ```bash
 npm run arena -- --directory private/arena-round --host 127.0.0.1 --port 18186
 ```
 
-The framework includes blinded pairwise comparison, per-screen review, progress persistence, annotations, incremental ranking, score display and administration. Offline candidate revision/model expansion helpers preserve unaffected votes and progress on private database clones. Cohort task counts and model identities are supplied by the local manifest, not embedded production data.
+该框架提供盲测成对比较、逐屏评审、进度持久化、标注、增量排名、评分展示和管理功能。离线候选版本修订／模型扩展辅助工具在私有数据库副本上操作，保留不受影响的投票和进度。候选集合的任务数量和模型身份由本地清单提供，代码中不嵌入生产环境数据。
 
-A real round needs a private frozen snapshot and its local media. These runtime inputs and the generated SQLite/access files are excluded from Git. No live round, production task list, candidate images or actual ballots are bundled. Admin endpoints require access by default; live Figma links remain off for blinded review. For remote deployment, configure HTTPS and `--secure-cookies true` explicitly.
+真实轮次需要私有的冻结快照及其本地媒体资源。这些运行时输入以及生成的 SQLite／访问配置文件均不纳入 Git。本仓库不附带实际运行的评测轮次、生产任务列表、候选图片或真实投票记录。管理员端点默认要求访问授权；用于盲测评审的实时 Figma 链接默认关闭。远程部署时，请显式配置 HTTPS 和 `--secure-cookies true`。
 
-Bind a new judge batch to your own frozen Arena revision:
+将新的评审批次绑定到自己的冻结 Arena 版本：
 
 ```bash
 node scripts/export-harness-arena-scores.mjs \
@@ -132,9 +132,9 @@ npm run arena -- --directory private/arena-round \
   --judge-scores-directory private/arena-scores
 ```
 
-The bridge verifies the batch's frozen configuration, rubric, seeded repetitions, successful image reads and exact screenshot hashes. Incomplete judge blocks remain absent. It writes only to the specified local private directory and does not publish data.
+桥接程序会校验批次的冻结配置、评分量表、带种子的重复评审、成功的图像读取记录，以及完全一致的截图哈希。不完整的评审模型评分块保持缺失。程序只写入指定的本地私有目录，不会发布数据。
 
-## Framework-only publication
+## 仅发布框架代码
 
 ```bash
 npm run release:check:working
@@ -142,4 +142,4 @@ npm run release:check
 python scripts/check-release.py --tree HEAD --history
 ```
 
-The release check allows framework text, documented placeholder examples and the rubric; it rejects runtime manifests, binary media, datasets, archives, credentials and detected private identifiers. The active GitHub Actions workflow runs this check plus offline Node/Python tests. It does not upload runtime artifacts.
+发布检查允许框架文本、文档中说明的占位示例和评分量表，拒绝运行时清单、二进制媒体、数据集、压缩归档、凭据以及检测到的私有标识信息。已启用的 GitHub Actions 工作流会执行该检查以及离线 Node／Python 测试，不上传运行时产物。
